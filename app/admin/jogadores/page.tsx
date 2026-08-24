@@ -1,10 +1,13 @@
 import { createClient } from "@/utils/supabase/server";
+import { getPlayerRankings } from "@/app/actions/stats";
 import { PlayersTable } from "./PlayersTable";
+import { PlayerRankings } from "./PlayerRankings";
+import { JogadoresTabs } from "./JogadoresTabs";
 
 export default async function JogadoresPage() {
   const supabase = await createClient();
 
-  const [{ data: players }, { data: participations }] = await Promise.all([
+  const [{ data: players }, { data: participations }, rankings] = await Promise.all([
     supabase
       .from("players")
       .select(
@@ -18,6 +21,7 @@ export default async function JogadoresPage() {
         Array<{ player_id: string; matches: { status: string | null } | null }>,
         { merge: false }
       >(),
+    getPlayerRankings(),
   ]);
 
   const finishedGamesByPlayer = new Map<string, number>();
@@ -48,10 +52,13 @@ export default async function JogadoresPage() {
       <div>
         <h1 className="text-2xl font-bold">Jogadores</h1>
         <p className="text-sm text-foreground/60">
-          Ficha técnica e histórico de cada jogador.
+          Ficha técnica, histórico e o Hall da Fama de cada jogador.
         </p>
       </div>
-      <PlayersTable players={rows} />
+      <JogadoresTabs
+        elenco={<PlayersTable players={rows} />}
+        stats={<PlayerRankings rankings={rankings} />}
+      />
     </div>
   );
 }

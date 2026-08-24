@@ -1,49 +1,71 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import { getInProgressSession, getOpenForRsvpSession } from "@/utils/sessions";
+import { average, CURRENT_MENSALIDADE_FEE, monthBounds, monthKey } from "@/utils/dashboardMetrics";
 import type { PlayerType } from "@/types/supabase";
-import {
-  average,
-  CURRENT_DIARIA_FEE,
-  CURRENT_MENSALIDADE_FEE,
-  formatMonthLabel,
-  monthBounds,
-  monthKey,
-  trailingMonths,
-} from "@/utils/dashboardMetrics";
-import { CashHealthCard } from "./CashHealthCard";
+import { PlayerAvatar } from "@/app/admin/jogadores/PlayerAvatar";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
 
+type ActivePlayer = {
+  id: string;
+  name: string;
+  type: PlayerType | null;
+  birthDay: number | null;
+  birthMonth: number | null;
+  photoUrl: string | null;
+};
+
+/**
+ * "Centro de Comando" — a snapshot of the current month, not a financial
+ * modeling tool. Trend/forecast material (Previsão Mês Seguinte, Saúde do
+ * Caixa) moved to /admin/financeiro, which is where that kind of thinking
+ * actually belongs; this page stays about "what needs my attention today".
+ */
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
 
   const currentMonth = monthKey(new Date().toISOString());
-  const trailing3 = trailingMonths(3);
-  const trailingRangeStart = `${trailing3[trailing3.length - 1]}-01`;
-  const { start: currentMonthStart } = monthBounds(currentMonth);
+  const { start: monthStart, end: monthEnd } = monthBounds(currentMonth);
+  const currentMonthNumber = Number(currentMonth.split("-")[1]);
 
   const [
     inProgressSession,
     openForRsvpSession,
-    { count: mensalistaCount },
-    { data: diaristaPresenceRows },
+    { data: activePlayerRows },
     { data: allPaidPayments },
     { data: allExpenses },
-    { data: currentMonthPayments },
-    { data: currentMonthExpenses },
-    { data: trailingPayments },
-    { data: trailingExpenses },
+    { data: mensalidadePaidThisMonth },
+    { data: expensesThisMonthRows },
+    { data: diaristaPresenceRows },
+    { data: recentClosedSessions },
   ] = await Promise.all([
     getInProgressSession(supabase),
     getOpenForRsvpSession(supabase),
-    supabase.from("players").select("id", { count: "exact", head: true }).eq("type", "mensalista"),
+    supabase
+      .from("players")
+      .select("id, name, type, birth_day, birth_month, photo_url")
+      .eq("status", "active"),
+    supabase.from("payments").select("amount").eq("status", "pago"),
+    supabase.from("expenses").select("amount"),
+    supabase
+      .from("payments")
+      .select("player_id")
+      .eq("type", "mensalidade")
+      .eq("reference_month", currentMonth)
+      .eq("status", "pago"),
+    supabase
+      .from("expenses")
+      .select("amount")
+      .gte("expense_date", monthStart)
+      .lt("expense_date", monthEnd),
     supabase
       .from("session_presences")
-      .select("player_id, status, players(type), sessions(session_date)")
+      .select("player_id, players(type), sessions(session_date)")
       .eq("status", "checked_in_field")
       .overrideTypes<
         Array<{
@@ -53,32 +75,31 @@ export default async function AdminDashboardPage() {
         }>,
         { merge: false }
       >(),
-    supabase.from("payments").select("amount").eq("status", "pago"),
-    supabase.from("expenses").select("amount"),
     supabase
-      .from("payments")
-      .select("amount")
-      .eq("status", "pago")
-      .eq("reference_month", currentMonth),
-    supabase
-      .from("expenses")
-      .select("amount")
-      .gte("expense_date", currentMonthStart)
-      .lt("expense_date", monthBounds(currentMonth).end),
-    supabase
-      .from("payments")
-      .select("amount, reference_month")
-      .eq("status", "pago")
-      .in("reference_month", trailing3),
-    supabase
-      .from("expenses")
-      .select("amount, expense_date")
-      .gte("expense_date", trailingRangeStart)
-      .lt("expense_date", currentMonthStart),
+      .from("sessions")
+      .select("id, session_date")
+      .eq("status", "closed")
+      .order("session_date", { ascending: false })
+      .limit(2),
   ]);
 
-  // Average distinct diaristas checked in per month, across every month
-  // that has at least one session — "Média de Diaristas/Mês".
+  const activePlayers: ActivePlayer[] = (activePlayerRows ?? []).map((player) => ({
+    id: player.id,
+    name: player.name,
+    type: player.type,
+    birthDay: player.birth_day,
+    birthMonth: player.birth_month,
+    photoUrl: player.photo_url,
+  }));
+
+  const sum = (rows: { amount: number }[] | null) =>
+    (rows ?? []).reduce((total, row) => total + Number(row.amount), 0);
+
+  const caixaAtual = sum(allPaidPayments) - sum(allExpenses);
+  const mensalistasAtivos = activePlayers.filter((player) => player.type === "mensalista");
+
+  // Média mensal de diaristas: distinct diaristas checked in per month,
+  // averaged across every month that has had at least one session.
   const diaristasByMonth = new Map<string, Set<string>>();
   for (const row of diaristaPresenceRows ?? []) {
     if (row.players?.type !== "diarista" || !row.sessions?.session_date) continue;
@@ -90,51 +111,50 @@ export default async function AdminDashboardPage() {
     Array.from(diaristasByMonth.values()).map((set) => set.size),
   );
 
-  const sum = (rows: { amount: number }[] | null) =>
-    (rows ?? []).reduce((total, row) => total + Number(row.amount), 0);
+  // Aniversariantes do mês.
+  const birthdaysThisMonth = activePlayers
+    .filter((player) => player.birthMonth === currentMonthNumber && player.birthDay)
+    .sort((a, b) => (a.birthDay ?? 0) - (b.birthDay ?? 0));
 
-  const caixaAtual = sum(allPaidPayments) - sum(allExpenses);
-  const entradasMesCorrente = sum(currentMonthPayments);
-  const saidasMesCorrente = sum(currentMonthExpenses);
+  // Devedores do mês — mensalistas ativos sem pagamento 'pago' registrado
+  // para o mês corrente. Valor devido assume a mensalidade atual (não há
+  // "fee" armazenado em lugar nenhum do schema — ver dashboardMetrics.ts).
+  const paidPlayerIds = new Set((mensalidadePaidThisMonth ?? []).map((p) => p.player_id));
+  const devedores = mensalistasAtivos.filter((player) => !paidPlayerIds.has(player.id));
+  const totalDivida = devedores.length * CURRENT_MENSALIDADE_FEE;
 
-  const revenueByTrailingMonth = new Map<string, number>(trailing3.map((m) => [m, 0]));
-  for (const payment of trailingPayments ?? []) {
-    if (revenueByTrailingMonth.has(payment.reference_month)) {
-      revenueByTrailingMonth.set(
-        payment.reference_month,
-        (revenueByTrailingMonth.get(payment.reference_month) ?? 0) + Number(payment.amount),
-      );
-    }
-  }
+  // Despesas do mês.
+  const despesasDoMes = sum(expensesThisMonthRows);
+  const despesasCount = (expensesThisMonthRows ?? []).length;
 
-  const expensesByTrailingMonth = new Map<string, number>(trailing3.map((m) => [m, 0]));
-  for (const expense of trailingExpenses ?? []) {
-    const month = monthKey(expense.expense_date);
-    if (expensesByTrailingMonth.has(month)) {
-      expensesByTrailingMonth.set(
-        month,
-        (expensesByTrailingMonth.get(month) ?? 0) + Number(expense.amount),
-      );
-    }
-  }
+  // Alerta de ausência (risco de churn) — mensalistas ativos sem check-in
+  // nas últimas 2 sessões encerradas.
+  const recentSessionIds = (recentClosedSessions ?? []).map((session) => session.id);
+  const { data: recentPresences } =
+    recentSessionIds.length > 0
+      ? await supabase
+          .from("session_presences")
+          .select("player_id")
+          .in("session_id", recentSessionIds)
+          .eq("status", "checked_in_field")
+      : { data: [] as { player_id: string | null }[] };
 
-  const avgMonthlyExpenses = average(Array.from(expensesByTrailingMonth.values()));
-  const avgMonthlyBalance = average(
-    trailing3.map((m) => (revenueByTrailingMonth.get(m) ?? 0) - (expensesByTrailingMonth.get(m) ?? 0)),
+  const presentPlayerIds = new Set(
+    (recentPresences ?? [])
+      .map((presence) => presence.player_id)
+      .filter((id): id is string => Boolean(id)),
   );
-
-  const previsaoEntradas =
-    (mensalistaCount ?? 0) * CURRENT_MENSALIDADE_FEE +
-    avgDiaristasPerMonth * CURRENT_DIARIA_FEE;
-  const previsaoSaidas = avgMonthlyExpenses;
-  const previsaoSaldo = previsaoEntradas - previsaoSaidas;
+  const churnRisk =
+    recentSessionIds.length > 0
+      ? mensalistasAtivos.filter((player) => !presentPlayerIds.has(player.id))
+      : [];
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-10">
       <div>
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-sm text-foreground/60">
-          Visão financeira e operacional da pelada.
+          Centro de comando — visão do mês corrente.
         </p>
       </div>
 
@@ -163,65 +183,94 @@ export default async function AdminDashboardPage() {
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <MetricCard
-          label="Mensalistas Ativos"
-          value={String(mensalistaCount ?? 0)}
-        />
-        <MetricCard
-          label="Média Diaristas/Mês"
-          value={avgDiaristasPerMonth.toFixed(1)}
-        />
-        <MetricCard
           label="Caixa Atual"
           value={currency.format(caixaAtual)}
           tone={caixaAtual < 0 ? "negative" : "positive"}
         />
+        <MetricCard label="Mensalistas Ativos" value={String(mensalistasAtivos.length)} />
+        <MetricCard label="Média Mensal de Diaristas" value={avgDiaristasPerMonth.toFixed(1)} />
       </div>
 
-      <section className="rounded-lg border border-foreground/10 p-6">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground/50">
-          📅 Mês Corrente ({formatMonthLabel(currentMonth)})
-        </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <MetricCard label="Entradas" value={currency.format(entradasMesCorrente)} tone="positive" compact />
-          <MetricCard label="Saídas" value={currency.format(saidasMesCorrente)} tone="negative" compact />
-          <MetricCard
-            label="Saldo do Mês"
-            value={currency.format(entradasMesCorrente - saidasMesCorrente)}
-            tone={entradasMesCorrente - saidasMesCorrente < 0 ? "negative" : "positive"}
-            compact
-          />
-        </div>
-      </section>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Panel title="🎂 Aniversariantes do Mês">
+          {birthdaysThisMonth.length === 0 ? (
+            <EmptyState text="Ninguém faz aniversário este mês." />
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {birthdaysThisMonth.map((player) => (
+                <li key={player.id} className="flex items-center gap-3 text-sm">
+                  <PlayerAvatar photoUrl={player.photoUrl} name={player.name} />
+                  <span className="flex-1 truncate">{player.name}</span>
+                  <span className="font-mono text-xs text-foreground/50">
+                    dia {player.birthDay}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
 
-      <section className="rounded-lg border border-foreground/10 p-6">
-        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-foreground/50">
-          🔮 Previsão Mês Seguinte
-        </h2>
-        <p className="mb-4 text-xs text-foreground/50">
-          Entradas = (mensalistas × {currency.format(CURRENT_MENSALIDADE_FEE)}) +
-          (média diaristas/mês × {currency.format(CURRENT_DIARIA_FEE)}). Saídas =
-          média de despesas dos últimos 3 meses.
-        </p>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <MetricCard label="Previsão Entradas" value={currency.format(previsaoEntradas)} tone="positive" compact />
-          <MetricCard label="Previsão Saídas" value={currency.format(previsaoSaidas)} tone="negative" compact />
-          <MetricCard
-            label="Saldo Projetado"
-            value={currency.format(previsaoSaldo)}
-            tone={previsaoSaldo < 0 ? "negative" : "positive"}
-            compact
-          />
-        </div>
-        <p className="mt-4 text-xs text-foreground/40">
-          Saldo médio dos últimos 3 meses: {currency.format(avgMonthlyBalance)}
-        </p>
-      </section>
+        <Panel title="💸 Devedores do Mês">
+          {devedores.length === 0 ? (
+            <EmptyState text="Todos os mensalistas em dia. 🎉" />
+          ) : (
+            <>
+              <ul className="flex flex-col gap-2">
+                {devedores.map((player) => (
+                  <li key={player.id} className="flex items-center gap-3 text-sm">
+                    <PlayerAvatar photoUrl={player.photoUrl} name={player.name} />
+                    <span className="flex-1 truncate">{player.name}</span>
+                    <span className="font-mono text-xs text-red-500">
+                      {currency.format(CURRENT_MENSALIDADE_FEE)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 border-t border-foreground/10 pt-3 text-xs text-foreground/50">
+                Total em aberto:{" "}
+                <span className="font-semibold text-red-500">
+                  {currency.format(totalDivida)}
+                </span>
+              </p>
+            </>
+          )}
+        </Panel>
 
-      <CashHealthCard
-        avgMonthlyExpenses={avgMonthlyExpenses}
-        mensalistaCount={mensalistaCount ?? 0}
-        avgDiaristasPerMonth={avgDiaristasPerMonth}
-      />
+        <Panel title="🧾 Despesas do Mês">
+          <p className="text-2xl font-bold text-red-500">{currency.format(despesasDoMes)}</p>
+          <p className="mt-1 text-xs text-foreground/50">
+            {despesasCount} lançamento{despesasCount === 1 ? "" : "s"} este mês.
+          </p>
+        </Panel>
+
+        <Panel title="⚠️ Alerta de Ausência (Risco de Churn)">
+          {recentSessionIds.length === 0 ? (
+            <EmptyState text="Ainda não há sessões encerradas para avaliar." />
+          ) : churnRisk.length === 0 ? (
+            <EmptyState text="Todos os mensalistas apareceram recentemente. 🎉" />
+          ) : (
+            <>
+              <p className="mb-2 text-xs text-foreground/50">
+                Sem check-in nas últimas {recentSessionIds.length} sessões encerradas:
+              </p>
+              <ul className="flex flex-col gap-2">
+                {churnRisk.map((player) => (
+                  <li key={player.id} className="flex items-center gap-3 text-sm">
+                    <PlayerAvatar photoUrl={player.photoUrl} name={player.name} />
+                    <span className="flex-1 truncate">{player.name}</span>
+                    <Link
+                      href={`/admin/jogadores/${player.id}`}
+                      className="whitespace-nowrap text-xs underline underline-offset-4"
+                    >
+                      Ver ficha
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -251,24 +300,16 @@ function MetricCard({
   label,
   value,
   tone,
-  compact,
 }: {
   label: string;
   value: string;
   tone?: "positive" | "negative";
-  compact?: boolean;
 }) {
   return (
-    <div
-      className={`flex flex-col gap-1 rounded-lg border border-foreground/10 ${
-        compact ? "p-4" : "p-5"
-      }`}
-    >
-      <span className="text-[10px] uppercase tracking-wide text-foreground/40">
-        {label}
-      </span>
+    <div className="flex flex-col gap-1 rounded-lg border border-foreground/10 p-5">
+      <span className="text-[10px] uppercase tracking-wide text-foreground/40">{label}</span>
       <span
-        className={`font-bold ${compact ? "text-lg" : "text-2xl"} ${
+        className={`text-2xl font-bold ${
           tone === "negative"
             ? "text-red-500"
             : tone === "positive"
@@ -280,4 +321,19 @@ function MetricCard({
       </span>
     </div>
   );
+}
+
+function Panel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-lg border border-foreground/10 p-5">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <p className="text-sm text-foreground/40">{text}</p>;
 }
