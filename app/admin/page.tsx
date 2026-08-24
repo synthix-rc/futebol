@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getQueue } from "@/utils/queue";
 import type { MatchTeam, PlayerType, PresenceStatus } from "@/types/supabase";
 import { CheckInButton } from "./CheckInButton";
-import { StartMatchButton } from "./StartMatchButton";
+import { DraftBoard } from "./DraftBoard";
 import { FinishMatchButtons } from "./FinishMatchButtons";
 
 export default async function AdminPage() {
@@ -112,11 +112,11 @@ export default async function AdminPage() {
             <FinishMatchButtons matchId={activeMatch.id} />
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-4 py-6">
-            <p className="text-sm text-foreground/50">
-              Nenhuma partida em andamento.
+          <div className="flex flex-col gap-4 py-2">
+            <p className="text-center text-sm text-foreground/50">
+              Nenhuma partida em andamento. Monte os times abaixo.
             </p>
-            <StartMatchButton queueSize={queue.length} />
+            <DraftBoard players={queue.slice(0, 12).map((entry) => entry.player)} />
           </div>
         )}
       </section>

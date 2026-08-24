@@ -36,11 +36,40 @@ export async function checkInPlayer(presenceId: string): Promise<ActionResult> {
   return { success: true };
 }
 
+const TEAM_SIZE = 6;
+
 /**
- * Kicks off the session: takes the first 12 players in the FIFO queue and
- * opens the first match (6 vs 6).
+ * Kicks off the session with a match assembled by the admin's "Modo Deus"
+ * draft board (app/admin/DraftBoard.tsx): 6 vs 6, manually rebalanced from
+ * the FIFO queue rather than auto-sliced by arrival order.
+ *
+ * FIFO still governs *who* is eligible to play — every id is re-checked
+ * against the live queue below — the admin only controls which side (A/B)
+ * each of those already-eligible players lands on. Server Actions are
+ * reachable via direct POST, so the client's team split is never trusted
+ * on its own.
  */
-export async function startFirstMatch(): Promise<ActionResult> {
+export async function startFirstMatch(
+  teamAPlayerIds: string[],
+  teamBPlayerIds: string[],
+): Promise<ActionResult> {
+  if (
+    !Array.isArray(teamAPlayerIds) ||
+    !Array.isArray(teamBPlayerIds) ||
+    teamAPlayerIds.length !== TEAM_SIZE ||
+    teamBPlayerIds.length !== TEAM_SIZE
+  ) {
+    return {
+      success: false,
+      message: `Cada time precisa de exatamente ${TEAM_SIZE} jogadores.`,
+    };
+  }
+
+  const allIds = [...teamAPlayerIds, ...teamBPlayerIds];
+  if (new Set(allIds).size !== allIds.length) {
+    return { success: false, message: "Um jogador não pode estar nos dois times." };
+  }
+
   const supabase = await createClient();
 
   const { data: session } = await supabase
@@ -54,19 +83,21 @@ export async function startFirstMatch(): Promise<ActionResult> {
   }
 
   try {
+    // Re-validate every id against the live queue — never trust the
+    // client's team split as proof those players are actually checked in
+    // and free to play.
     const queue = await getQueue(supabase, session.id);
+    const queueIds = new Set(queue.map((entry) => entry.playerId));
+    const notQueued = allIds.filter((id) => !queueIds.has(id));
 
-    if (queue.length < 12) {
+    if (notQueued.length > 0) {
       return {
         success: false,
-        message: `Fila insuficiente para iniciar: ${queue.length}/12 jogadores.`,
+        message: "A fila mudou. Atualize a página e tente novamente.",
       };
     }
 
-    const teamA = queue.slice(0, 6).map((entry) => entry.playerId);
-    const teamB = queue.slice(6, 12).map((entry) => entry.playerId);
-
-    await createMatch(supabase, session.id, teamA, teamB);
+    await createMatch(supabase, session.id, teamAPlayerIds, teamBPlayerIds);
   } catch (err) {
     return {
       success: false,

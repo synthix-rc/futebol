@@ -4,15 +4,20 @@ import type { MatchTeam, PlayerType } from "@/types/supabase";
 // See types/supabase.ts for why this isn't `SupabaseClient<Database>`.
 type TypedClient = SupabaseClient;
 
+export type QueuePlayer = {
+  id: string;
+  name: string;
+  type: PlayerType;
+  defRating: number | null;
+  midRating: number | null;
+  atkRating: number | null;
+};
+
 export type QueueEntry = {
   presenceId: string;
   playerId: string;
   checkInTimestamp: string;
-  player: {
-    id: string;
-    name: string;
-    type: PlayerType;
-  };
+  player: QueuePlayer;
 };
 
 /**
@@ -53,7 +58,7 @@ export async function getQueue(
   const { data: presences, error: presencesError } = await supabase
     .from("session_presences")
     .select(
-      "id, player_id, check_in_timestamp, players(id, name, type)",
+      "id, player_id, check_in_timestamp, players(id, name, type, def_rating, mid_rating, atk_rating)",
     )
     .eq("session_id", sessionId)
     .eq("status", "checked_in_field")
@@ -64,7 +69,14 @@ export async function getQueue(
         id: string;
         player_id: string;
         check_in_timestamp: string | null;
-        players: { id: string; name: string; type: PlayerType } | null;
+        players: {
+          id: string;
+          name: string;
+          type: PlayerType;
+          def_rating: number | null;
+          mid_rating: number | null;
+          atk_rating: number | null;
+        } | null;
       }>,
       { merge: false }
     >();
@@ -131,6 +143,9 @@ export async function getQueue(
         id: presence.players!.id,
         name: presence.players!.name,
         type: presence.players!.type,
+        defRating: presence.players!.def_rating,
+        midRating: presence.players!.mid_rating,
+        atkRating: presence.players!.atk_rating,
       },
     }));
 }
