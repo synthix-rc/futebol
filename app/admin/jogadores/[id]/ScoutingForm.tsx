@@ -65,7 +65,7 @@ export function ScoutingForm({
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 p-6">
+    <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 bg-card p-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
           ⚽ Scouting
@@ -118,7 +118,7 @@ export function ScoutingForm({
             <button
               type="submit"
               disabled={isPending}
-              className="min-h-11 flex-1 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="min-h-11 flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {isPending ? "Salvando…" : "Salvar Scouting"}
             </button>

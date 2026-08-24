@@ -10,10 +10,8 @@ import {
   monthKey,
   trailingMonths,
 } from "@/utils/dashboardMetrics";
-import type { PlayerType } from "@/types/supabase";
+import type { PaymentCategory, PlayerType } from "@/types/supabase";
 import { PaymentsList, type PaymentRowData } from "./PaymentsList";
-import { CashForecast } from "./CashForecast";
-import { CashHealthCard } from "./CashHealthCard";
 import { ExpenseForm } from "./ExpenseForm";
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -63,13 +61,21 @@ export default async function FinanceiroPage() {
 
     const { data: diariaPayments } = await supabase
       .from("payments")
-      .select("player_id, amount")
+      .select("player_id, amount, category")
       .eq("session_id", session.id)
       .eq("type", "diaria")
       .eq("status", "pago");
 
+    // One entry per player — if a player somehow has both a 'campo' and a
+    // 'churrasco' diária for the same session (registerPayment's
+    // uniqueness check allows that combination on purpose), this "Visão do
+    // Dia" row can only reflect one of them. That's an acceptable gap for
+    // this widget's scope; both rows still exist in `payments` either way.
     const paidByPlayer = new Map(
-      (diariaPayments ?? []).map((p) => [p.player_id, Number(p.amount)]),
+      (diariaPayments ?? []).map((p) => [
+        p.player_id,
+        { amount: Number(p.amount), category: p.category as PaymentCategory },
+      ]),
     );
 
     diaristaRows = Array.from(diaristaByPlayer.values())
@@ -77,13 +83,14 @@ export default async function FinanceiroPage() {
         id: player.id,
         name: player.name,
         paid: paidByPlayer.has(player.id),
-        amount: paidByPlayer.get(player.id) ?? null,
+        amount: paidByPlayer.get(player.id)?.amount ?? null,
+        category: paidByPlayer.get(player.id)?.category ?? null,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   const currentMonth = monthKey(new Date().toISOString());
-  const { start: monthStart, end: monthEnd } = monthBounds(currentMonth);
+  const { start: monthStart } = monthBounds(currentMonth);
   const trailing3 = trailingMonths(3);
   const trailingRangeStart = `${trailing3[trailing3.length - 1]}-01`;
 
@@ -91,7 +98,6 @@ export default async function FinanceiroPage() {
     { data: allPlayers },
     { data: mensalistaPlayers },
     { data: mensalidadePayments },
-    { data: expensesThisMonthRows },
     { data: diaristaPresenceRows },
     { data: trailingPayments },
     { data: trailingExpenses },
@@ -104,11 +110,6 @@ export default async function FinanceiroPage() {
       .eq("type", "mensalidade")
       .eq("reference_month", currentMonth)
       .eq("status", "pago"),
-    supabase
-      .from("expenses")
-      .select("amount")
-      .gte("expense_date", monthStart)
-      .lt("expense_date", monthEnd),
     supabase
       .from("session_presences")
       .select("player_id, players(type), sessions(session_date)")
@@ -147,31 +148,6 @@ export default async function FinanceiroPage() {
     amount: paidMensalidadeByPlayer.get(player.id) ?? null,
   }));
 
-  const expensesThisMonth = (expensesThisMonthRows ?? []).reduce(
-    (sum, e) => sum + Number(e.amount),
-    0,
-  );
-  const realizedRevenue = Array.from(paidMensalidadeByPlayer.values()).reduce(
-    (sum, amount) => sum + amount,
-    0,
-  );
-
-  let suggestedFee =
-    paidMensalidadeByPlayer.size > 0
-      ? realizedRevenue / paidMensalidadeByPlayer.size
-      : 0;
-
-  if (suggestedFee === 0) {
-    const { data: anyMensalidade } = await supabase
-      .from("payments")
-      .select("amount")
-      .eq("type", "mensalidade")
-      .eq("status", "pago")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    suggestedFee = anyMensalidade ? Number(anyMensalidade.amount) : 0;
-  }
 
   // Média mensal de diaristas — same "distinct diaristas checked in per
   // month" definition used on the Dashboard, needed here for both the
@@ -214,6 +190,7 @@ export default async function FinanceiroPage() {
   );
 
   const mensalistaCount = mensalistaPlayers?.length ?? 0;
+  const projecaoMensalistas = mensalistaCount * CURRENT_MENSALIDADE_FEE;
   const previsaoEntradas =
     mensalistaCount * CURRENT_MENSALIDADE_FEE + avgDiaristasPerMonth * CURRENT_DIARIA_FEE;
   const previsaoSaidas = avgMonthlyExpenses;
@@ -228,7 +205,7 @@ export default async function FinanceiroPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-foreground/10 p-6">
+      <section className="rounded-lg border border-foreground/10 bg-card p-6">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
           💰 Caixa do Dia
         </h2>
@@ -247,14 +224,31 @@ export default async function FinanceiroPage() {
             🧠 Inteligência & Previsão
           </h2>
 
-          <CashForecast
-            mensalistaCount={mensalistaCount}
-            realizedRevenue={realizedRevenue}
-            expensesThisMonth={expensesThisMonth}
-            suggestedFee={suggestedFee}
-          />
+          <section className="rounded-lg border border-foreground/10 bg-card p-4">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-foreground/50">
+              📈 Projeção de Receita (Mensalistas)
+            </h3>
+            <p className="mb-4 text-xs text-foreground/50">
+              Automático, somente leitura — {mensalistaCount} mensalista
+              {mensalistaCount === 1 ? "" : "s"} × mensalidade padrão (
+              {currency.format(CURRENT_MENSALIDADE_FEE)}).
+            </p>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <ForecastStat label="Mensalistas" value={String(mensalistaCount)} />
+              <ForecastStat
+                label="Projeção"
+                value={currency.format(projecaoMensalistas)}
+                tone="positive"
+              />
+              <ForecastStat
+                label="Breakeven vs. despesa média"
+                value={currency.format(projecaoMensalistas - avgMonthlyExpenses)}
+                tone={projecaoMensalistas - avgMonthlyExpenses < 0 ? "negative" : "positive"}
+              />
+            </div>
+          </section>
 
-          <section className="rounded-lg border border-foreground/10 p-4">
+          <section className="rounded-lg border border-foreground/10 bg-card p-4">
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-foreground/50">
               🔮 Previsão Mês Seguinte
             </h3>
@@ -276,12 +270,6 @@ export default async function FinanceiroPage() {
               Saldo médio dos últimos 3 meses: {currency.format(avgMonthlyBalance)}
             </p>
           </section>
-
-          <CashHealthCard
-            avgMonthlyExpenses={avgMonthlyExpenses}
-            mensalistaCount={mensalistaCount}
-            avgDiaristasPerMonth={avgDiaristasPerMonth}
-          />
         </div>
 
         <div className="flex flex-col gap-6">

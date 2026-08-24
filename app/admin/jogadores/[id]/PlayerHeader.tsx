@@ -73,7 +73,7 @@ export function PlayerHeader({ player }: { player: PlayerHeaderData }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-foreground/10 p-6">
+    <div className="flex flex-col gap-4 rounded-lg border border-foreground/10 bg-card p-6">
       <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:text-left">
         <PlayerAvatar photoUrl={player.photoUrl} name={player.name} size="lg" />
         <div className="flex flex-1 flex-col gap-1">
@@ -98,7 +98,7 @@ export function PlayerHeader({ player }: { player: PlayerHeaderData }) {
             type="button"
             disabled={isApproving}
             onClick={handleApprove}
-            className="min-h-11 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="min-h-11 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {isApproving ? "Aprovando…" : "✅ Aprovar Jogador"}
           </button>
@@ -190,7 +190,7 @@ export function PlayerHeader({ player }: { player: PlayerHeaderData }) {
           <button
             type="submit"
             disabled={isSaving}
-            className="min-h-11 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="min-h-11 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {isSaving ? "Salvando…" : "Salvar Perfil"}
           </button>

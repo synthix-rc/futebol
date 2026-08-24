@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { VOTING_WINDOW_MS } from "@/utils/sessions";
-import type { PaymentStatus, PaymentType } from "@/types/supabase";
+import type { PaymentCategory, PaymentStatus, PaymentType } from "@/types/supabase";
 import { PlayerAvatar } from "@/app/admin/jogadores/PlayerAvatar";
 import { VotingCard, type VoteCandidate } from "./VotingCard";
 
@@ -68,7 +68,7 @@ export default async function PlayerProfilePage({
       >(),
     supabase
       .from("payments")
-      .select("id, amount, type, status, reference_month, created_at")
+      .select("id, amount, type, category, status, reference_month, created_at")
       .eq("player_id", id)
       .order("reference_month", { ascending: false })
       .overrideTypes<
@@ -76,6 +76,7 @@ export default async function PlayerProfilePage({
           id: string;
           amount: number;
           type: PaymentType;
+          category: PaymentCategory;
           status: PaymentStatus;
           reference_month: string;
           created_at: string;
@@ -100,7 +101,7 @@ export default async function PlayerProfilePage({
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-10">
       {votingSection}
 
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-foreground/10 p-6 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-foreground/10 bg-card p-6 text-center">
         <PlayerAvatar photoUrl={player.photo_url} name={player.name} size="lg" />
         <div>
           <h1 className="text-xl font-bold">{player.name}</h1>
@@ -110,7 +111,7 @@ export default async function PlayerProfilePage({
         </div>
       </div>
 
-      <section className="rounded-lg border border-foreground/10 p-6">
+      <section className="rounded-lg border border-foreground/10 bg-card p-6">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground/50">
           📊 Estatísticas
         </h2>
@@ -121,7 +122,7 @@ export default async function PlayerProfilePage({
         </div>
       </section>
 
-      <section className="rounded-lg border border-foreground/10 p-6">
+      <section className="rounded-lg border border-foreground/10 bg-card p-6">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
           💰 Extrato Financeiro
         </h2>
@@ -135,6 +136,8 @@ export default async function PlayerProfilePage({
                 <div className="flex flex-col">
                   <span className="font-medium">
                     {payment.type === "mensalidade" ? "Mensalidade" : "Diária"}
+                    {" · "}
+                    {payment.category === "churrasco" ? "Churrasco 🥩" : "Campo ⚽"}
                   </span>
                   <span className="text-xs text-foreground/50">
                     {formatReferenceMonth(payment.reference_month)}
@@ -310,7 +313,7 @@ function VotingResults({
 }) {
   if (votes.length === 0) {
     return (
-      <section className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/50">
+      <section className="rounded-lg border border-foreground/10 bg-card p-6 text-center text-sm text-foreground/50">
         🗳️ Votação encerrada — ninguém votou nesta rodada.
       </section>
     );
@@ -319,7 +322,7 @@ function VotingResults({
   const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
 
   return (
-    <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 p-6">
+    <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 bg-card p-6">
       <h2 className="text-center text-lg font-bold">🏆 Resultado da Urna</h2>
       <div className="grid grid-cols-3 gap-3">
         {RESULT_CATEGORIES.map(({ field, label, emoji }) => {

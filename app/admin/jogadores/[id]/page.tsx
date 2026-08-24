@@ -96,7 +96,7 @@ export default async function PlayerDetailPage({
         }}
       />
 
-      <section className="rounded-lg border border-foreground/10 p-6">
+      <section className="rounded-lg border border-foreground/10 bg-card p-6">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground/50">
           📊 Estatísticas
         </h2>
@@ -108,7 +108,7 @@ export default async function PlayerDetailPage({
       </section>
 
       {player.type === "mensalista" && (
-        <section className="rounded-lg border border-foreground/10 p-6">
+        <section className="rounded-lg border border-foreground/10 bg-card p-6">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
             💰 Financeiro
           </h2>

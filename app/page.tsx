@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import { getOpenForRsvpSession } from "@/utils/sessions";
@@ -8,10 +9,16 @@ export default async function Home() {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-16 text-center">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          ⚽ Gestão de Pelada
-        </h1>
+      <div className="flex flex-col items-center gap-4">
+        <h1 className="sr-only">Resenha Sesi Senai e Amigos</h1>
+        <Image
+          src="/logo-futebol.png"
+          alt="Resenha Sesi Senai e Amigos"
+          width={112}
+          height={112}
+          priority
+          className="h-12 w-12 sm:h-16 sm:w-16"
+        />
         <p className="max-w-md text-sm text-foreground/60">
           Fila de prioridade FIFO para organizar presença e rodízio de times
           no dia do jogo.
@@ -22,7 +29,7 @@ export default async function Home() {
         {openSession ? (
           <Link
             href={`/lista/${openSession.id}`}
-            className="rounded-lg bg-foreground px-6 py-4 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+            className="rounded-lg bg-primary px-6 py-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
             Lista de Presença da Semana
           </Link>
@@ -35,7 +42,7 @@ export default async function Home() {
           href="/admin"
           className="rounded-lg border border-foreground/20 px-6 py-4 text-sm font-semibold transition-colors hover:bg-foreground/5"
         >
-          Painel do Admin (Domingo)
+          Painel do Admin
         </Link>
         <Link
           href="/financeiro-publico"

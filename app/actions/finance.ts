@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { requireUser } from "@/utils/auth";
 import { logAction } from "@/utils/audit";
-import type { ExpenseCategory, PaymentType } from "@/types/supabase";
+import type { ExpenseCategory, PaymentCategory, PaymentType } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
 
@@ -19,9 +19,14 @@ export type RegisterPaymentInput = {
   referenceMonth: string;
   /** Public Storage URL from utils/storage.ts's uploadReceipt, if attached. */
   receiptUrl?: string | null;
+  /** BBQ Module — defaults to 'campo' so existing callers (e.g.
+   * MensalidadeStatus.tsx, where a monthly fee is never a churrasco
+   * contribution) don't need to pass it explicitly. */
+  category?: PaymentCategory;
 };
 
 const REFERENCE_MONTH_PATTERN = /^\d{4}-\d{2}$/;
+const PAYMENT_CATEGORIES: PaymentCategory[] = ["campo", "churrasco"];
 
 /**
  * "Marcar Pago": records a payment as paid. Guards against double-marking
@@ -47,6 +52,10 @@ export async function registerPayment(
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { success: false, message: "Informe um valor válido." };
   }
+  const category = input.category ?? "campo";
+  if (!PAYMENT_CATEGORIES.includes(category)) {
+    return { success: false, message: "Categoria de pagamento inválida." };
+  }
 
   const supabase = await createClient();
 
@@ -54,12 +63,16 @@ export async function registerPayment(
     return { success: false, message: "Sessão expirada. Faça login novamente." };
   }
 
+  // `category` is part of the uniqueness check too — a player can owe both
+  // a 'campo' diária and a separate 'churrasco' contribution for the same
+  // session, and those must be two distinct payment rows, not a collision.
   let existingQuery = supabase
     .from("payments")
     .select("id")
     .eq("player_id", input.playerId)
     .eq("type", input.type)
     .eq("reference_month", input.referenceMonth)
+    .eq("category", category)
     .eq("status", "pago");
 
   existingQuery =
@@ -86,6 +99,7 @@ export async function registerPayment(
       status: "pago",
       reference_month: input.referenceMonth,
       receipt_url: input.receiptUrl ?? null,
+      category,
     })
     .select("id")
     .single();
@@ -99,6 +113,7 @@ export async function registerPayment(
     type: input.type,
     amount: input.amount,
     referenceMonth: input.referenceMonth,
+    category,
   });
 
   revalidatePath("/admin/financeiro");

@@ -50,7 +50,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
       <button
         type="submit"
         disabled={isPending}
-        className="min-h-11 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="min-h-11 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {isPending ? "Entrando…" : "Entrar"}
       </button>

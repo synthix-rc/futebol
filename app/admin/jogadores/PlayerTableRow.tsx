@@ -19,6 +19,11 @@ export function PlayerTableRow({ player }: { player: PlayerRow }) {
         >
           <PlayerAvatar photoUrl={player.photoUrl} name={player.name} />
           {player.name}
+          {player.paidChurrascoThisMonth && (
+            <span title="Pagou o churrasco este mês" aria-label="Pagou o churrasco este mês">
+              🥩
+            </span>
+          )}
         </Link>
       </td>
       <td className="px-4 py-3">
@@ -60,7 +65,7 @@ export function PlayerTableRow({ player }: { player: PlayerRow }) {
               type="button"
               disabled={edit.isPending}
               onClick={edit.handleSave}
-              className="min-h-9 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="min-h-9 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {edit.isPending ? "Salvando…" : "Salvar"}
             </button>

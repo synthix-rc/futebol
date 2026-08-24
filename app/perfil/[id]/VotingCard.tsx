@@ -99,7 +99,7 @@ export function VotingCard({
 
   if (expired) {
     return (
-      <section className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/50">
+      <section className="rounded-lg border border-foreground/10 bg-card p-6 text-center text-sm text-foreground/50">
         🗳️ A urna desta rodada fechou.
       </section>
     );
@@ -129,7 +129,7 @@ export function VotingCard({
                   onClick={() => handlePick(category.key, candidate.id)}
                   className={`flex w-[4.5rem] min-h-11 flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-colors ${
                     selected
-                      ? "border-foreground bg-foreground text-background"
+                      ? "border-foreground bg-primary text-primary-foreground"
                       : "border-foreground/15 hover:bg-foreground/5"
                   }`}
                 >
@@ -150,7 +150,7 @@ export function VotingCard({
         type="button"
         disabled={isPending || !allPicked}
         onClick={handleSubmit}
-        className="min-h-11 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="min-h-11 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         {isPending ? "Enviando…" : allPicked ? "Confirmar Voto" : "Escolha os 3 para votar"}
       </button>

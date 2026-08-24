@@ -62,7 +62,7 @@ export function AvatarCropModal({
         />
       </div>
 
-      <div className="flex flex-col gap-4 bg-background p-4">
+      <div className="flex flex-col gap-4 bg-card p-4">
         <label className="flex flex-col gap-1 text-xs text-foreground/60">
           Zoom
           <input
@@ -102,7 +102,7 @@ export function AvatarCropModal({
             type="button"
             disabled={isProcessing || !croppedAreaPixels}
             onClick={handleConfirm}
-            className="min-h-11 flex-1 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="min-h-11 flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {isProcessing ? "Processando…" : "Usar Foto"}
           </button>

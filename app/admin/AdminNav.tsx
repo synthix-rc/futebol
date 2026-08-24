@@ -46,7 +46,7 @@ export function SidebarNav() {
             href={item.href}
             className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               active
-                ? "bg-foreground text-background"
+                ? "bg-primary text-primary-foreground"
                 : "text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
             }`}
           >

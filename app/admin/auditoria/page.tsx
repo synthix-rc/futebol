@@ -65,7 +65,7 @@ export default async function AuditoriaPage() {
       </div>
 
       {!logs || logs.length === 0 ? (
-        <p className="rounded-lg border border-foreground/10 px-4 py-6 text-center text-sm text-foreground/40">
+        <p className="rounded-lg border border-foreground/10 bg-card px-4 py-6 text-center text-sm text-foreground/40">
           Nenhuma ação registrada ainda.
         </p>
       ) : (
@@ -85,7 +85,7 @@ function AuditLogItem({ log }: { log: LogRow }) {
   const entityLabel = ENTITY_LABELS[log.entity_type] ?? log.entity_type;
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-4">
+    <li className="flex flex-col gap-2 rounded-lg border border-foreground/10 bg-card p-4">
       <div className="flex items-start gap-3">
         <PlayerAvatar photoUrl={log.admin_profiles?.photo_url ?? null} name={adminName} />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">

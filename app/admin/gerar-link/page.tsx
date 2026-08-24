@@ -29,7 +29,7 @@ export default async function GerarLinkPage() {
         </p>
       </div>
 
-      <section className="flex flex-col items-center gap-3 rounded-lg border border-foreground/10 p-6 text-center">
+      <section className="flex flex-col items-center gap-3 rounded-lg border border-foreground/10 bg-card p-6 text-center">
         <GenerateSessionButton disabled={hasOpenOrActive} />
         {hasOpenOrActive && (
           <p className="text-xs text-foreground/50">
@@ -40,7 +40,7 @@ export default async function GerarLinkPage() {
       </section>
 
       {openSession && (
-        <section className="flex flex-col gap-3 rounded-lg border border-foreground/10 p-6">
+        <section className="flex flex-col gap-3 rounded-lg border border-foreground/10 bg-card p-6">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
               📋 Lista Aberta — {formatDate(openSession.sessionDate)}
@@ -53,7 +53,7 @@ export default async function GerarLinkPage() {
       )}
 
       {inProgressSession && (
-        <section className="flex flex-col gap-3 rounded-lg border border-foreground/10 p-6">
+        <section className="flex flex-col gap-3 rounded-lg border border-foreground/10 bg-card p-6">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
               ⚔️ Em Andamento — {formatDate(inProgressSession.sessionDate)}
@@ -79,7 +79,7 @@ export default async function GerarLinkPage() {
             Nenhuma sessão criada ainda.
           </p>
         ) : (
-          <ul className="divide-y divide-foreground/10 rounded-lg border border-foreground/10">
+          <ul className="divide-y divide-foreground/10 rounded-lg border border-foreground/10 bg-card">
             {recentSessions.map((session) => (
               <li
                 key={session.id}

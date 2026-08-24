@@ -91,13 +91,13 @@ export default async function ListaPage({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
           Jogadores
         </h2>
-        <ul className="flex flex-col gap-2 sm:gap-0 sm:divide-y sm:divide-foreground/10 sm:rounded-lg sm:border sm:border-foreground/10">
+        <ul className="flex flex-col gap-2 sm:gap-0 sm:divide-y sm:divide-foreground/10 sm:rounded-lg sm:border sm:border-foreground/10 sm:bg-card">
           {(players ?? []).map((player) => {
             const presence = presenceByPlayer.get(player.id);
             return (
               <li
                 key={player.id}
-                className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-4 sm:flex-row sm:items-center sm:justify-between sm:rounded-none sm:border-0 sm:p-3 sm:px-4"
+                className="flex flex-col gap-2 rounded-lg border border-foreground/10 bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:rounded-none sm:border-0 sm:p-3 sm:px-4"
               >
                 <div>
                   <p className="text-sm font-medium">{player.name}</p>

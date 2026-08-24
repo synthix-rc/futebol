@@ -68,7 +68,7 @@ export function ExpenseForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-lg border border-foreground/10 p-4"
+      className="flex flex-col gap-3 rounded-lg border border-foreground/10 bg-card p-4"
     >
       <label className="flex flex-col gap-1 text-sm">
         Descrição
@@ -148,7 +148,7 @@ export function ExpenseForm({
       <button
         type="submit"
         disabled={isPending || !canSubmit}
-        className="min-h-11 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="min-h-11 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         {isPending ? "Salvando…" : "Registrar Despesa"}
       </button>

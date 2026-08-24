@@ -34,14 +34,14 @@ export default async function ConfiguracoesPage() {
         <p className="text-sm text-foreground/60">Seu perfil e a segurança da conta.</p>
       </div>
 
-      <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 p-6">
+      <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 bg-card p-6">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
           👤 Meu Perfil
         </h2>
         <AdminProfileForm initial={profile} />
       </section>
 
-      <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 p-6">
+      <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 bg-card p-6">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
           Trocar Senha
         </h2>

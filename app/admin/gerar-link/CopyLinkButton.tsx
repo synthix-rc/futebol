@@ -41,7 +41,7 @@ export function CopyLinkButton({ path }: { path: string }) {
       <button
         type="button"
         onClick={handleCopy}
-        className="whitespace-nowrap rounded-md bg-foreground px-3 py-2 text-xs font-semibold text-background transition-opacity hover:opacity-90"
+        className="whitespace-nowrap rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
       >
         {copied ? "Copiado!" : "Copiar Link"}
       </button>

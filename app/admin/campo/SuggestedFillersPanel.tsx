@@ -126,7 +126,7 @@ export function SuggestedFillersPanel({
                   onClick={() => toggle(player.id)}
                   className={`flex min-h-11 w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-xs transition-colors ${
                     isSelected
-                      ? "border-foreground bg-foreground text-background"
+                      ? "border-foreground bg-primary text-primary-foreground"
                       : isDisabled
                         ? "border-foreground/10 text-foreground/30"
                         : "border-foreground/15 hover:border-foreground/30 hover:bg-foreground/5"
@@ -136,7 +136,7 @@ export function SuggestedFillersPanel({
                     <span aria-hidden="true">{isSelected ? "✅" : "⬜"}</span>
                     {player.name}
                   </span>
-                  <span className={isSelected ? "text-background/70" : "text-foreground/40"}>
+                  <span className={isSelected ? "text-primary-foreground/70" : "text-foreground/40"}>
                     {player.type === "mensalista" ? "Mensalista" : "Diarista"} ·{" "}
                     {player.gamesPlayedToday} jogo
                     {player.gamesPlayedToday === 1 ? "" : "s"} hoje
@@ -155,7 +155,7 @@ export function SuggestedFillersPanel({
             onConfirm(candidates.filter((player) => selectedIds.has(player.id)));
             setState({ phase: "idle" });
           }}
-          className="min-h-11 flex-1 rounded-md bg-foreground px-3 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="min-h-11 flex-1 rounded-md bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           Confirmar
         </button>

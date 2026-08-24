@@ -96,7 +96,7 @@ export function CadastroForm() {
 
   if (success) {
     return (
-      <div className="flex flex-col items-center gap-4 rounded-lg border border-foreground/10 p-8 text-center">
+      <div className="flex flex-col items-center gap-4 rounded-lg border border-foreground/10 bg-card p-8 text-center">
         <p className="text-4xl">✅</p>
         <h2 className="text-lg font-semibold">Cadastro enviado!</h2>
         <p className="text-sm text-foreground/60">
@@ -168,7 +168,7 @@ export function CadastroForm() {
               onClick={() => setType("mensalista")}
               className={`min-h-11 rounded-md border px-3 py-2.5 text-sm font-semibold transition-colors ${
                 type === "mensalista"
-                  ? "border-foreground bg-foreground text-background"
+                  ? "border-foreground bg-primary text-primary-foreground"
                   : "border-foreground/20 hover:bg-foreground/5"
               }`}
             >
@@ -179,7 +179,7 @@ export function CadastroForm() {
               onClick={() => setType("diarista")}
               className={`min-h-11 rounded-md border px-3 py-2.5 text-sm font-semibold transition-colors ${
                 type === "diarista"
-                  ? "border-foreground bg-foreground text-background"
+                  ? "border-foreground bg-primary text-primary-foreground"
                   : "border-foreground/20 hover:bg-foreground/5"
               }`}
             >
@@ -235,7 +235,7 @@ export function CadastroForm() {
         <button
           type="submit"
           disabled={isPending || !canSubmit}
-          className="min-h-11 rounded-md bg-foreground px-4 py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="min-h-11 rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {isPending ? "Enviando…" : "Enviar Cadastro"}
         </button>

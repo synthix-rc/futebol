@@ -42,7 +42,6 @@ export default async function AdminDashboardPage() {
     { data: mensalidadePaidThisMonth },
     { data: expensesThisMonthRows },
     { data: diaristaPresenceRows },
-    { data: recentClosedSessions },
   ] = await Promise.all([
     getInProgressSession(supabase),
     getOpenForRsvpSession(supabase),
@@ -75,12 +74,6 @@ export default async function AdminDashboardPage() {
         }>,
         { merge: false }
       >(),
-    supabase
-      .from("sessions")
-      .select("id, session_date")
-      .eq("status", "closed")
-      .order("session_date", { ascending: false })
-      .limit(2),
   ]);
 
   const activePlayers: ActivePlayer[] = (activePlayerRows ?? []).map((player) => ({
@@ -125,29 +118,6 @@ export default async function AdminDashboardPage() {
 
   // Despesas do mês.
   const despesasDoMes = sum(expensesThisMonthRows);
-  const despesasCount = (expensesThisMonthRows ?? []).length;
-
-  // Alerta de ausência (risco de churn) — mensalistas ativos sem check-in
-  // nas últimas 2 sessões encerradas.
-  const recentSessionIds = (recentClosedSessions ?? []).map((session) => session.id);
-  const { data: recentPresences } =
-    recentSessionIds.length > 0
-      ? await supabase
-          .from("session_presences")
-          .select("player_id")
-          .in("session_id", recentSessionIds)
-          .eq("status", "checked_in_field")
-      : { data: [] as { player_id: string | null }[] };
-
-  const presentPlayerIds = new Set(
-    (recentPresences ?? [])
-      .map((presence) => presence.player_id)
-      .filter((id): id is string => Boolean(id)),
-  );
-  const churnRisk =
-    recentSessionIds.length > 0
-      ? mensalistasAtivos.filter((player) => !presentPlayerIds.has(player.id))
-      : [];
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-10">
@@ -158,7 +128,7 @@ export default async function AdminDashboardPage() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-foreground/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border border-foreground/10 bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
           <StatusLine
             label="Sessão de hoje"
@@ -181,11 +151,16 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <MetricCard
           label="Caixa Atual"
           value={currency.format(caixaAtual)}
           tone={caixaAtual < 0 ? "negative" : "positive"}
+        />
+        <MetricCard
+          label="Despesas do Mês"
+          value={currency.format(despesasDoMes)}
+          tone="negative"
         />
         <MetricCard label="Mensalistas Ativos" value={String(mensalistasAtivos.length)} />
         <MetricCard label="Média Mensal de Diaristas" value={avgDiaristasPerMonth.toFixed(1)} />
@@ -235,41 +210,6 @@ export default async function AdminDashboardPage() {
             </>
           )}
         </Panel>
-
-        <Panel title="🧾 Despesas do Mês">
-          <p className="text-2xl font-bold text-red-500">{currency.format(despesasDoMes)}</p>
-          <p className="mt-1 text-xs text-foreground/50">
-            {despesasCount} lançamento{despesasCount === 1 ? "" : "s"} este mês.
-          </p>
-        </Panel>
-
-        <Panel title="⚠️ Alerta de Ausência (Risco de Churn)">
-          {recentSessionIds.length === 0 ? (
-            <EmptyState text="Ainda não há sessões encerradas para avaliar." />
-          ) : churnRisk.length === 0 ? (
-            <EmptyState text="Todos os mensalistas apareceram recentemente. 🎉" />
-          ) : (
-            <>
-              <p className="mb-2 text-xs text-foreground/50">
-                Sem check-in nas últimas {recentSessionIds.length} sessões encerradas:
-              </p>
-              <ul className="flex flex-col gap-2">
-                {churnRisk.map((player) => (
-                  <li key={player.id} className="flex items-center gap-3 text-sm">
-                    <PlayerAvatar photoUrl={player.photoUrl} name={player.name} />
-                    <span className="flex-1 truncate">{player.name}</span>
-                    <Link
-                      href={`/admin/jogadores/${player.id}`}
-                      className="whitespace-nowrap text-xs underline underline-offset-4"
-                    >
-                      Ver ficha
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Panel>
       </div>
     </div>
   );
@@ -306,7 +246,7 @@ function MetricCard({
   tone?: "positive" | "negative";
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-foreground/10 p-5">
+    <div className="flex flex-col gap-1 rounded-lg border border-foreground/10 bg-card p-5">
       <span className="text-[10px] uppercase tracking-wide text-foreground/40">{label}</span>
       <span
         className={`text-2xl font-bold ${
@@ -325,7 +265,7 @@ function MetricCard({
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-foreground/10 p-5">
+    <section className="rounded-lg border border-foreground/10 bg-card p-5">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
         {title}
       </h2>

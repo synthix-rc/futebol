@@ -231,7 +231,7 @@ export function DraftBoard({
           type="button"
           disabled={isPending || !readyToStart}
           onClick={handleStart}
-          className="min-h-11 w-full rounded-lg bg-foreground px-6 py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40 sm:w-auto"
+          className="min-h-11 w-full rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40 sm:w-auto"
         >
           {isPending ? "Iniciando…" : "Iniciar Partida"}
         </button>

@@ -19,7 +19,7 @@ export function FinishMatchButtons({
         <button
           type="button"
           onClick={() => setPendingResult("team_a")}
-          className="min-h-11 w-full rounded-lg bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 sm:w-auto"
+          className="min-h-11 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 sm:w-auto"
         >
           🏆 Time A Venceu
         </button>
@@ -33,7 +33,7 @@ export function FinishMatchButtons({
         <button
           type="button"
           onClick={() => setPendingResult("team_b")}
-          className="min-h-11 w-full rounded-lg bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 sm:w-auto"
+          className="min-h-11 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 sm:w-auto"
         >
           🏆 Time B Venceu
         </button>

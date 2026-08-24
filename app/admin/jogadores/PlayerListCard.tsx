@@ -11,18 +11,26 @@ export function PlayerListCard({ player }: { player: PlayerRow }) {
   const edit = useQuickEdit(player);
 
   return (
-    <li className="flex flex-col gap-3 rounded-lg border border-foreground/10 p-4">
+    <li className="flex flex-col gap-3 rounded-lg border border-foreground/10 bg-card p-4">
       <div className="flex items-center gap-3">
         <PlayerAvatar photoUrl={player.photoUrl} name={player.name} />
-        <Link href={`/admin/jogadores/${player.id}`} className="flex-1 truncate font-medium">
-          {player.name}
+        <Link
+          href={`/admin/jogadores/${player.id}`}
+          className="flex flex-1 items-center gap-1 truncate font-medium"
+        >
+          <span className="truncate">{player.name}</span>
+          {player.paidChurrascoThisMonth && (
+            <span title="Pagou o churrasco este mês" aria-label="Pagou o churrasco este mês">
+              🥩
+            </span>
+          )}
         </Link>
         {edit.isEditing ? (
           <button
             type="button"
             disabled={edit.isPending}
             onClick={edit.handleSave}
-            className="min-h-9 shrink-0 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="min-h-9 shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {edit.isPending ? "Salvando…" : "Salvar"}
           </button>

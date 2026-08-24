@@ -233,6 +233,7 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          category: string
           created_at: string
           id: string
           player_id: string
@@ -244,6 +245,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          category?: string
           created_at?: string
           id?: string
           player_id: string
@@ -255,6 +257,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          category?: string
           created_at?: string
           id?: string
           player_id?: string
@@ -705,9 +708,10 @@ export const Constants = {
 // (the `--yes` skips the "Need to install..." prompt that corrupted this
 // file previously; make sure the alias block below survives the overwrite).
 //
-// `team` (match_participations) and `winner_team` (matches) are plain
-// `text` columns in the DB, not real Postgres enums, so they stay as
-// app-level literal unions matching the values this codebase writes.
+// `team` (match_participations), `winner_team` (matches), and `category`
+// (payments) are plain `text` columns in the DB, not real Postgres enums,
+// so they stay as app-level literal unions matching the values this
+// codebase writes.
 export type PlayerType = Enums<"player_type">;
 export type PlayerStatus = Enums<"player_status">;
 export type PresenceStatus = Enums<"rsvp_status">;
@@ -718,3 +722,4 @@ export type PaymentStatus = Enums<"payment_status">;
 export type ExpenseCategory = Enums<"expense_category">;
 export type MatchTeam = "A" | "B";
 export type WinnerTeam = "team_a" | "team_b" | "draw";
+export type PaymentCategory = "campo" | "churrasco";

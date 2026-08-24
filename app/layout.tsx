@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gestão de Pelada",
+  title: "Resenha Sesi Senai e Amigos",
   description: "Fila de presença e rodízio de times para o futebol de domingo.",
 };
 

@@ -84,7 +84,7 @@ export function MensalidadeStatus({
             type="button"
             disabled={isPending || !canSubmit}
             onClick={handleMarkPaid}
-            className="min-h-11 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="min-h-11 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {isPending ? "Salvando…" : "Marcar Pago"}
           </button>

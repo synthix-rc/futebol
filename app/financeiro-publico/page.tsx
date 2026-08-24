@@ -127,7 +127,7 @@ export default async function FinanceiroPublicoPage() {
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-foreground/10 p-4"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-foreground/10 bg-card p-4"
               >
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium">{entry.label}</span>
@@ -180,7 +180,7 @@ function SummaryCard({
   tone: "positive" | "negative";
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-foreground/10 p-4">
+    <div className="flex flex-col gap-1 rounded-lg border border-foreground/10 bg-card p-4">
       <span className="text-[10px] uppercase tracking-wide text-foreground/40">
         {label}
       </span>

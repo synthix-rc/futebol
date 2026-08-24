@@ -14,6 +14,9 @@ export type PlayerRow = {
   speedRating: number | null;
   staminaRating: number | null;
   finishedGames: number;
+  /** BBQ Module — true when a 'churrasco' category payment ('pago') exists
+   * for this player in the current reference month. */
+  paidChurrascoThisMonth: boolean;
 };
 
 /**
@@ -28,7 +31,7 @@ export type PlayerRow = {
 export function PlayersTable({ players }: { players: PlayerRow[] }) {
   if (players.length === 0) {
     return (
-      <p className="rounded-lg border border-foreground/10 px-4 py-6 text-center text-sm text-foreground/40">
+      <p className="rounded-lg border border-foreground/10 bg-card px-4 py-6 text-center text-sm text-foreground/40">
         Nenhum jogador cadastrado.
       </p>
     );
@@ -46,7 +49,7 @@ export function PlayersTable({ players }: { players: PlayerRow[] }) {
       </ul>
 
       {/* Desktop: a plain table is fine — no small-screen constraint. */}
-      <div className="hidden overflow-x-auto rounded-lg border border-foreground/10 sm:block">
+      <div className="hidden overflow-x-auto rounded-lg border border-foreground/10 bg-card sm:block">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-foreground/10 bg-foreground/[0.03] text-xs uppercase tracking-wide text-foreground/50">
             <tr>

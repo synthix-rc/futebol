@@ -22,7 +22,7 @@ export function JogadoresTabs({ elenco, stats }: { elenco: ReactNode; stats: Rea
     <div className="flex flex-col gap-6">
       <div
         role="tablist"
-        className="flex gap-1 rounded-lg border border-foreground/10 p-1"
+        className="flex gap-1 rounded-lg border border-foreground/10 bg-card p-1"
       >
         {TABS.map((tab) => (
           <button
@@ -33,7 +33,7 @@ export function JogadoresTabs({ elenco, stats }: { elenco: ReactNode; stats: Rea
             onClick={() => setActive(tab.key)}
             className={`min-h-11 flex-1 rounded-md px-3 text-sm font-semibold transition-colors ${
               active === tab.key
-                ? "bg-foreground text-background"
+                ? "bg-primary text-primary-foreground"
                 : "text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
             }`}
           >

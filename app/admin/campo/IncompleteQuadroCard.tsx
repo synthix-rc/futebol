@@ -57,7 +57,7 @@ export function IncompleteQuadroCard({
   ];
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-foreground/10 p-4">
+    <div className="flex flex-col gap-3 rounded-lg border border-foreground/10 bg-card p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Quadro {number}</h3>
         {missing > 0 ? (

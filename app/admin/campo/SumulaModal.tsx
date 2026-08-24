@@ -66,7 +66,7 @@ export function SumulaModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-6">
-      <div className="flex max-h-[90vh] w-full flex-col gap-4 rounded-t-2xl bg-background p-6 shadow-xl sm:max-w-lg sm:rounded-2xl">
+      <div className="flex max-h-[90vh] w-full flex-col gap-4 rounded-t-2xl bg-card p-6 shadow-xl sm:max-w-lg sm:rounded-2xl">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">📋 Súmula da Partida</h2>
           <button
@@ -95,7 +95,7 @@ export function SumulaModal({
             type="button"
             disabled={isPending}
             onClick={handleSave}
-            className="min-h-11 flex-1 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="min-h-11 flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {isPending ? "Salvando…" : "Salvar Súmula e Rolar Fila"}
           </button>
@@ -131,7 +131,7 @@ function TeamStatList({
         return (
           <li
             key={entry.playerId}
-            className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-lg border border-foreground/10 bg-card p-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <span className="truncate text-sm font-medium">{entry.name}</span>
             <div className="flex gap-4">

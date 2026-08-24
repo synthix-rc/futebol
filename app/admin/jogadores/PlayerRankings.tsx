@@ -41,7 +41,7 @@ function RankingCard({
   unit: (value: number) => string;
 }) {
   return (
-    <section className="rounded-lg border border-foreground/10 p-5">
+    <section className="rounded-lg border border-foreground/10 bg-card p-5">
       <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
         {title}
       </h3>
