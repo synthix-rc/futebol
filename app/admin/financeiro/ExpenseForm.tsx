@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTransition } from "react";
 import { createExpense } from "@/app/actions/finance";
 import type { ExpenseCategory } from "@/types/supabase";
-import { ReceiptUploadField } from "./ReceiptUploadField";
+import { ReceiptUploadField } from "../ReceiptUploadField";
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   campo: "Campo",
@@ -75,7 +75,7 @@ export function ExpenseForm({
         <input
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="Ex: Aluguel da quadra"
+          placeholder="Ex: Aluguel do campo"
           className="min-h-11 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
         />
       </label>

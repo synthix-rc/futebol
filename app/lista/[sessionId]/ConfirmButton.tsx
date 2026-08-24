@@ -14,7 +14,7 @@ export function ConfirmButton({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex w-full flex-col items-end gap-1 sm:w-auto">
       <button
         type="button"
         disabled={isPending}
@@ -27,7 +27,7 @@ export function ConfirmButton({
             }
           });
         }}
-        className="rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="min-h-11 w-full rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
       >
         {isPending ? "Confirmando…" : "Confirmar Presença"}
       </button>

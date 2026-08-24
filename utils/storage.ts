@@ -1,42 +1,60 @@
 import { createClient } from "@/utils/supabase/client";
 
 const RECEIPTS_BUCKET = "comprovantes";
+const AVATARS_BUCKET = "avatars";
+
+type UploadResult = { url: string } | { error: string };
 
 /**
- * Uploads a receipt file (payment or expense proof) directly from the
- * browser to the `comprovantes` Storage bucket and returns its public URL.
- *
- * Done client-side rather than through a Server Action: Server Actions cap
- * request bodies at 1MB by default, and a phone-camera photo of a receipt
- * routinely exceeds that. Uploading straight to Storage from the browser
- * has no such limit; only the resulting URL string needs to reach the
- * server afterward (see app/actions/finance.ts).
- *
- * The `comprovantes` bucket is created by hand in the Supabase dashboard
- * (not by a migration) and must be marked **public** for the returned URL
- * to actually resolve — until it exists, this rejects with a clear error
- * rather than throwing something opaque.
+ * Shared upload primitive: pushes a File/Blob straight from the browser to
+ * a Storage bucket and returns its public URL. Client-side, not through a
+ * Server Action — those cap request bodies at 1MB by default, and a
+ * phone-camera photo routinely exceeds that; only the resulting URL string
+ * needs to reach the server afterward (see app/actions/finance.ts,
+ * app/actions/players.ts).
+ */
+async function uploadToBucket(
+  bucket: string,
+  path: string,
+  file: File | Blob,
+  options: { contentType?: string } = {},
+): Promise<UploadResult> {
+  const supabase = createClient();
+
+  const { error } = await supabase.storage
+    .from(bucket)
+    .upload(path, file, { cacheControl: "3600", upsert: false, ...options });
+
+  if (error) {
+    return {
+      error: `Erro ao enviar arquivo. Se o bucket "${bucket}" ainda não foi criado no Supabase (público), peça ao admin para criá-lo antes.`,
+    };
+  }
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return { url: data.publicUrl };
+}
+
+/**
+ * Uploads a receipt (payment or expense proof) to the `comprovantes`
+ * bucket. Created by hand in the dashboard, not by a migration — until it
+ * exists, this rejects with a clear error rather than something opaque.
  */
 export async function uploadReceipt(
   file: File,
   folder: "payments" | "expenses",
-): Promise<{ url: string } | { error: string }> {
-  const supabase = createClient();
-
+): Promise<UploadResult> {
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
   const path = `${folder}/${crypto.randomUUID()}-${safeName}`;
+  return uploadToBucket(RECEIPTS_BUCKET, path, file);
+}
 
-  const { error: uploadError } = await supabase.storage
-    .from(RECEIPTS_BUCKET)
-    .upload(path, file, { cacheControl: "3600", upsert: false });
-
-  if (uploadError) {
-    return {
-      error:
-        "Erro ao enviar comprovante. Se o bucket \"comprovantes\" ainda não foi criado no Supabase, peça ao admin para criá-lo (público) antes de anexar arquivos.",
-    };
-  }
-
-  const { data } = supabase.storage.from(RECEIPTS_BUCKET).getPublicUrl(path);
-  return { url: data.publicUrl };
+/**
+ * Uploads an already-cropped avatar (a JPEG Blob from
+ * app/cadastro/cropImage.ts) to the `avatars` bucket — also created by
+ * hand in the dashboard, also public.
+ */
+export async function uploadAvatar(blob: Blob): Promise<UploadResult> {
+  const path = `${crypto.randomUUID()}.jpg`;
+  return uploadToBucket(AVATARS_BUCKET, path, blob, { contentType: "image/jpeg" });
 }

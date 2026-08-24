@@ -8,7 +8,7 @@ import { DraftBoard } from "./DraftBoard";
 import { FinishMatchButtons } from "./FinishMatchButtons";
 import { QueueBoards } from "./QueueBoards";
 
-export default async function QuadraPage() {
+export default async function CampoPage() {
   const supabase = await createClient();
 
   const session = await getInProgressSession(supabase);
@@ -19,8 +19,8 @@ export default async function QuadraPage() {
         <p className="text-4xl">⚠️</p>
         <h1 className="text-xl font-semibold">Nenhuma sessão em andamento</h1>
         <p className="text-sm text-foreground/60">
-          Inicie a sessão de domingo em &quot;Gerar Link&quot; para abrir a
-          quadra.
+          Inicie a sessão de domingo em &quot;Gerar Link&quot; para abrir o
+          campo.
         </p>
         <Link
           href="/admin/gerar-link"
@@ -89,7 +89,7 @@ export default async function QuadraPage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
       <div>
-        <h1 className="text-2xl font-bold">Quadra</h1>
+        <h1 className="text-2xl font-bold">Campo</h1>
         <p className="text-sm text-foreground/60">
           Sessão de{" "}
           {new Date(`${session.sessionDate}T00:00:00.000Z`).toLocaleDateString(
@@ -109,7 +109,14 @@ export default async function QuadraPage() {
               <TeamPanel name={activeMatch.team_a_name} entries={teamA} />
               <TeamPanel name={activeMatch.team_b_name} entries={teamB} />
             </div>
-            <FinishMatchButtons matchId={activeMatch.id} />
+            <FinishMatchButtons
+              matchId={activeMatch.id}
+              roster={activeMatch.match_participations.map((p) => ({
+                playerId: p.player_id,
+                name: p.players?.name ?? "Jogador",
+                team: p.team,
+              }))}
+            />
           </div>
         ) : (
           <div className="flex flex-col gap-4 py-2">
@@ -177,11 +184,11 @@ function CheckInList({
       {entries.length === 0 ? (
         <p className="text-sm text-foreground/40">Ninguém aguardando aqui.</p>
       ) : (
-        <ul className="divide-y divide-foreground/10 rounded-lg border border-foreground/10">
+        <ul className="flex flex-col gap-2 sm:gap-0 sm:divide-y sm:divide-foreground/10 sm:rounded-lg sm:border sm:border-foreground/10">
           {entries.map((entry) => (
             <li
               key={entry.id}
-              className="flex items-center justify-between gap-4 px-4 py-3"
+              className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-4 sm:flex-row sm:items-center sm:justify-between sm:rounded-none sm:border-0 sm:p-3 sm:px-4"
             >
               <span className="text-sm font-medium">
                 {entry.players?.name ?? "Jogador"}

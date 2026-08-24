@@ -65,7 +65,7 @@ export default async function ListaPage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-6 py-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">Lista de Presença da Semana</h1>
           <p className="text-sm text-foreground/60">
@@ -91,13 +91,13 @@ export default async function ListaPage({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
           Jogadores
         </h2>
-        <ul className="divide-y divide-foreground/10 rounded-lg border border-foreground/10">
+        <ul className="flex flex-col gap-2 sm:gap-0 sm:divide-y sm:divide-foreground/10 sm:rounded-lg sm:border sm:border-foreground/10">
           {(players ?? []).map((player) => {
             const presence = presenceByPlayer.get(player.id);
             return (
               <li
                 key={player.id}
-                className="flex items-center justify-between gap-4 px-4 py-3"
+                className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-4 sm:flex-row sm:items-center sm:justify-between sm:rounded-none sm:border-0 sm:p-3 sm:px-4"
               >
                 <div>
                   <p className="text-sm font-medium">{player.name}</p>
@@ -130,7 +130,7 @@ function StatusBadge({ status }: { status: string }) {
   const labels: Record<string, string> = {
     confirmed: "Confirmado",
     pending_waitlist: "Na fila de espera",
-    checked_in_field: "Em quadra",
+    checked_in_field: "Em campo",
   };
 
   return (

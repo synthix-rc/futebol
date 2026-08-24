@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { registerPayment } from "@/app/actions/finance";
 import type { PaymentType } from "@/types/supabase";
-import { ReceiptUploadField } from "./ReceiptUploadField";
+import { ReceiptUploadField } from "../ReceiptUploadField";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",

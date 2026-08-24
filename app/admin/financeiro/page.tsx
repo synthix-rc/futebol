@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import { getInProgressSession } from "@/utils/sessions";
+import { formatMonthLabel, monthBounds, monthKey } from "@/utils/dashboardMetrics";
 import type { PlayerType } from "@/types/supabase";
 import { PaymentsList, type PaymentRowData } from "./PaymentsList";
 import { CashForecast } from "./CashForecast";
@@ -9,16 +11,6 @@ const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
-
-function monthBounds(referenceMonth: string) {
-  const [year, month] = referenceMonth.split("-").map(Number);
-  const start = `${referenceMonth}-01`;
-  const end =
-    month === 12
-      ? `${year + 1}-01-01`
-      : `${year}-${String(month + 1).padStart(2, "0")}-01`;
-  return { start, end };
-}
 
 export default async function FinanceiroPage() {
   const supabase = await createClient();
@@ -81,7 +73,7 @@ export default async function FinanceiroPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = monthKey(new Date().toISOString());
   const { start: monthStart, end: monthEnd } = monthBounds(currentMonth);
 
   const [
@@ -109,6 +101,9 @@ export default async function FinanceiroPage() {
     (mensalidadePayments ?? []).map((p) => [p.player_id, Number(p.amount)]),
   );
 
+  // Read-only overview — actually marking a mensalidade paid happens on
+  // that player's own ficha (/admin/jogadores) now, not from a long list
+  // here, since a monthly fee isn't tied to any one day's session.
   const mensalistaRows: PaymentRowData[] = (mensalistaPlayers ?? []).map((player) => ({
     id: player.id,
     name: player.name,
@@ -190,15 +185,18 @@ export default async function FinanceiroPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
-          Visão Mensal (Mensalidades) — {formatMonthLabel(currentMonth)}
-        </h2>
-        <PaymentsList
-          type="mensalidade"
-          sessionId={null}
-          referenceMonth={currentMonth}
-          rows={mensalistaRows}
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
+            Mensalidades — {formatMonthLabel(currentMonth)}
+          </h2>
+          <Link
+            href="/admin/jogadores"
+            className="text-xs underline underline-offset-4"
+          >
+            Marcar pago na ficha do jogador →
+          </Link>
+        </div>
+        <MensalidadeSummary rows={mensalistaRows} />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -211,11 +209,32 @@ export default async function FinanceiroPage() {
   );
 }
 
-function formatMonthLabel(referenceMonth: string) {
-  const [year, month] = referenceMonth.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+function MensalidadeSummary({ rows }: { rows: PaymentRowData[] }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-foreground/40">Nenhum mensalista cadastrado.</p>;
+  }
+
+  const paidCount = rows.filter((row) => row.paid).length;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-foreground/50">
+        {paidCount} de {rows.length} mensalistas pagaram este mês.
+      </p>
+      <ul className="flex flex-wrap gap-2">
+        {rows.map((row) => (
+          <li
+            key={row.id}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+              row.paid
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : "bg-foreground/10 text-foreground/50"
+            }`}
+          >
+            {row.name} {row.paid ? "✓" : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }

@@ -40,7 +40,7 @@ export async function getSessionById(
   return data ? mapSession(data) : null;
 }
 
-/** The one session currently on the field — what the Quadra tab loads. */
+/** The one session currently on the field — what the Campo tab loads. */
 export async function getInProgressSession(
   supabase: TypedClient,
 ): Promise<SessionSummary | null> {

@@ -10,6 +10,7 @@ import {
   toRoster,
 } from "@/utils/queue";
 import { getSessionById } from "@/utils/sessions";
+import { requireUser } from "@/utils/auth";
 import type { PlayerType, WinnerTeam } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
@@ -26,6 +27,10 @@ export async function checkInPlayer(presenceId: string): Promise<ActionResult> {
 
   const supabase = await createClient();
 
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
+
   const { data, error } = await supabase
     .from("session_presences")
     .update({
@@ -40,7 +45,7 @@ export async function checkInPlayer(presenceId: string): Promise<ActionResult> {
     return { success: false, message: "Erro ao fazer check-in do jogador." };
   }
 
-  revalidatePath("/admin/quadra");
+  revalidatePath("/admin/campo");
   if (data?.session_id) {
     revalidatePath(`/lista/${data.session_id}`);
   }
@@ -51,7 +56,7 @@ const TEAM_SIZE = 6;
 
 /**
  * Kicks off the session with a match assembled by the admin's "Modo Deus"
- * draft board (app/admin/DraftBoard.tsx): 6 vs 6, manually rebalanced from
+ * draft board (app/admin/campo/DraftBoard.tsx): 6 vs 6, manually rebalanced from
  * the FIFO queue rather than auto-sliced by arrival order.
  *
  * FIFO still governs *who* is eligible to play — every id is re-checked
@@ -94,6 +99,10 @@ export async function startFirstMatch(
 
   const supabase = await createClient();
 
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
+
   const session = await getSessionById(supabase, sessionId);
   if (!session || session.status !== "in_progress") {
     return { success: false, message: "Esta sessão não está em andamento." };
@@ -132,9 +141,15 @@ export async function startFirstMatch(
     };
   }
 
-  revalidatePath("/admin/quadra");
+  revalidatePath("/admin/campo");
   return { success: true };
 }
+
+export type MatchPlayerStat = {
+  playerId: string;
+  goals: number;
+  assists: number;
+};
 
 /**
  * Finalizes the match in progress and rotates players through the queue:
@@ -146,16 +161,27 @@ export async function startFirstMatch(
  * A follow-up match is only created when enough challengers are already
  * queued — otherwise the field just goes idle until the admin starts the
  * next match manually (there is always at least a winning team waiting).
+ *
+ * `playerStats` is the "Súmula" tally (goals/assists per participant)
+ * collected by the admin before confirming the result — written to each
+ * player's `match_participations` row before the queue rotates. Omitting it
+ * (or passing an empty array) just finishes the match with no stats, so
+ * older callers still work.
  */
 export async function finishMatch(
   matchId: string,
   result: WinnerTeam,
+  playerStats: MatchPlayerStat[] = [],
 ): Promise<ActionResult> {
   if (!matchId) {
     return { success: false, message: "Partida inválida." };
   }
 
   const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
 
   try {
     const { data: match, error: matchError } = await supabase
@@ -186,6 +212,24 @@ export async function finishMatch(
     const teamBIds = participations
       .filter((p) => p.team === "B")
       .map((p) => p.player_id);
+
+    const participantIds = new Set(participations.map((p) => p.player_id));
+    for (const stat of playerStats) {
+      if (!participantIds.has(stat.playerId)) continue;
+      const goals = Math.max(0, Math.trunc(stat.goals) || 0);
+      const assists = Math.max(0, Math.trunc(stat.assists) || 0);
+      if (goals === 0 && assists === 0) continue;
+
+      const { error: statError } = await supabase
+        .from("match_participations")
+        .update({ goals, assists })
+        .eq("match_id", matchId)
+        .eq("player_id", stat.playerId);
+
+      if (statError) {
+        throw new Error("Erro ao salvar a súmula da partida.");
+      }
+    }
 
     const { error: closeError } = await supabase
       .from("matches")
@@ -239,7 +283,7 @@ export async function finishMatch(
     };
   }
 
-  revalidatePath("/admin/quadra");
+  revalidatePath("/admin/campo");
   return { success: true };
 }
 
@@ -251,6 +295,8 @@ export type SuggestedFiller = {
   defRating: number | null;
   midRating: number | null;
   atkRating: number | null;
+  speedRating: number | null;
+  staminaRating: number | null;
 };
 
 type SuggestedFillersResult =
@@ -258,12 +304,18 @@ type SuggestedFillersResult =
   | { success: false; message: string };
 
 /**
- * "Tapa-buraco": suggests who should fill an incomplete quadro, in strict
- * priority order:
+ * "Tapa-buraco": returns every available candidate to fill an incomplete
+ * quadro, ranked in strict priority order:
  *   1. type — mensalista before diarista.
  *   2. games_played_today ascending — whoever has played the least today.
  *   3. exact ties on both of the above are broken randomly, so no single
  *      player is systematically favored when the rule can't distinguish them.
+ *
+ * Returns the *whole* ranked pool rather than slicing to the number of open
+ * slots — the admin picks exactly who plays from this list client-side
+ * (see SuggestedFillersPanel), since a top-ranked suggestion can turn out
+ * to be unavailable (hurt, tired, has to leave) and they need other options
+ * to swap in without re-fetching.
  *
  * The candidate pool is the live FIFO queue itself (checked_in_field, not
  * already tied to an in-progress match) minus `excludePlayerIds` — i.e. the
@@ -273,17 +325,17 @@ type SuggestedFillersResult =
  */
 export async function getSuggestedFillers(
   sessionId: string,
-  neededCount: number,
   excludePlayerIds: string[],
 ): Promise<SuggestedFillersResult> {
   if (!sessionId) {
     return { success: false, message: "Sessão inválida." };
   }
-  if (!Number.isInteger(neededCount) || neededCount <= 0) {
-    return { success: false, message: "Quantidade de vagas inválida." };
-  }
 
   const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
 
   const session = await getSessionById(supabase, sessionId);
   if (!session) {
@@ -314,9 +366,11 @@ export async function getSuggestedFillers(
       defRating: entry.player.defRating,
       midRating: entry.player.midRating,
       atkRating: entry.player.atkRating,
+      speedRating: entry.player.speedRating,
+      staminaRating: entry.player.staminaRating,
     }));
 
-    return { success: true, players: rankFillers(candidates).slice(0, neededCount) };
+    return { success: true, players: rankFillers(candidates) };
   } catch (err) {
     return {
       success: false,

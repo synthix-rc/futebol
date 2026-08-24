@@ -5,7 +5,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useDroppable,
   useSensor,
@@ -64,8 +65,17 @@ export function DraftBoard({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Mouse and touch are deliberately separate sensors, not one PointerSensor
+  // covering both: on a phone, the default browser behavior for a
+  // finger-down-and-move is to scroll the page, and that needs to keep
+  // working for a normal swipe. TouchSensor's delay+tolerance means a drag
+  // only activates after a 250ms press-and-hold that doesn't wander more
+  // than 5px — a quick swipe over a card falls through to native scroll
+  // instead of hijacking it. Mouse keeps the snappier distance-based
+  // activation, since there's no scroll-gesture conflict to guard against.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -216,12 +226,12 @@ export function DraftBoard({
         />
       )}
 
-      <div className="flex flex-col items-center gap-2 pt-2">
+      <div className="flex w-full flex-col items-center gap-2 pt-2 sm:w-auto">
         <button
           type="button"
           disabled={isPending || !readyToStart}
           onClick={handleStart}
-          className="rounded-lg bg-foreground px-6 py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="min-h-11 w-full rounded-lg bg-foreground px-6 py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40 sm:w-auto"
         >
           {isPending ? "Iniciando…" : "Iniciar Partida"}
         </button>
@@ -311,7 +321,7 @@ function SortablePlayerCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`touch-none cursor-grab select-none rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm transition-shadow active:cursor-grabbing ${
+      className={`flex min-h-11 touch-none cursor-grab select-none items-center rounded-md border border-foreground/10 bg-background px-3 py-2.5 text-sm transition-shadow active:cursor-grabbing ${
         isDragging ? "opacity-30" : "hover:border-foreground/30 hover:shadow-sm"
       }`}
     >
@@ -328,7 +338,7 @@ function PlayerCard({
   isCompleting: boolean;
 }) {
   return (
-    <div className="cursor-grabbing rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm shadow-lg">
+    <div className="flex min-h-11 cursor-grabbing items-center rounded-md border border-foreground/20 bg-background px-3 py-2.5 text-sm shadow-lg">
       <PlayerCardContent player={player} isCompleting={isCompleting} />
     </div>
   );
@@ -342,7 +352,7 @@ function PlayerCardContent({
   isCompleting: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex w-full items-center justify-between gap-3">
       <div>
         <p className="flex items-center gap-1.5 font-medium">
           {player.name}
@@ -357,7 +367,7 @@ function PlayerCardContent({
         </p>
       </div>
       <span className="font-mono text-[10px] text-foreground/40">
-        D{player.defRating ?? "–"} M{player.midRating ?? "–"} A{player.atkRating ?? "–"}
+        {`D${player.defRating ?? "–"} M${player.midRating ?? "–"} A${player.atkRating ?? "–"} V${player.speedRating ?? "–"} R${player.staminaRating ?? "–"}`}
       </span>
     </div>
   );

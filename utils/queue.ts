@@ -11,6 +11,8 @@ export type QueuePlayer = {
   defRating: number | null;
   midRating: number | null;
   atkRating: number | null;
+  speedRating: number | null;
+  staminaRating: number | null;
 };
 
 export type QueueEntry = {
@@ -32,14 +34,18 @@ export function toRoster(playerIds: string[]): RosterEntry[] {
   return playerIds.map((playerId) => ({ playerId }));
 }
 
+/** Summed across all 5 scouting metrics — "força" of a quadro/team is the
+ * total of Defesa, Meio, Ataque, Velocidade and Resistência. */
 export function sumRatings(players: QueuePlayer[]) {
   return players.reduce(
     (totals, player) => ({
       def: totals.def + (player.defRating ?? 0),
       mid: totals.mid + (player.midRating ?? 0),
       atk: totals.atk + (player.atkRating ?? 0),
+      speed: totals.speed + (player.speedRating ?? 0),
+      stamina: totals.stamina + (player.staminaRating ?? 0),
     }),
-    { def: 0, mid: 0, atk: 0 },
+    { def: 0, mid: 0, atk: 0, speed: 0, stamina: 0 },
   );
 }
 
@@ -66,7 +72,7 @@ export async function getQueue(
   const { data: presences, error: presencesError } = await supabase
     .from("session_presences")
     .select(
-      "id, player_id, check_in_timestamp, players(id, name, type, def_rating, mid_rating, atk_rating)",
+      "id, player_id, check_in_timestamp, players(id, name, type, def_rating, mid_rating, atk_rating, speed_rating, stamina_rating)",
     )
     .eq("session_id", sessionId)
     .eq("status", "checked_in_field")
@@ -84,6 +90,8 @@ export async function getQueue(
           def_rating: number | null;
           mid_rating: number | null;
           atk_rating: number | null;
+          speed_rating: number | null;
+          stamina_rating: number | null;
         } | null;
       }>,
       { merge: false }
@@ -114,7 +122,7 @@ export async function getQueue(
         .in("match_id", activeMatchIds);
 
     if (participationsError) {
-      throw new Error("Erro ao verificar jogadores em quadra.");
+      throw new Error("Erro ao verificar jogadores em campo.");
     }
 
     playingPlayerIds = new Set(
@@ -154,6 +162,8 @@ export async function getQueue(
         defRating: presence.players!.def_rating,
         midRating: presence.players!.mid_rating,
         atkRating: presence.players!.atk_rating,
+        speedRating: presence.players!.speed_rating,
+        staminaRating: presence.players!.stamina_rating,
       },
     }));
 }

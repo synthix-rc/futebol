@@ -61,10 +61,10 @@ export default async function GerarLinkPage() {
             <StatusBadge status={inProgressSession.status} />
           </div>
           <a
-            href="/admin/quadra"
+            href="/admin/campo"
             className="text-sm underline underline-offset-4"
           >
-            Ir para a Quadra →
+            Ir para o Campo →
           </a>
           <SessionLifecycleButton sessionId={inProgressSession.id} action="close" />
         </section>

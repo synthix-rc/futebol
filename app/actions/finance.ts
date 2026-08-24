@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
+import { requireUser } from "@/utils/auth";
 import type { ExpenseCategory, PaymentType } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
@@ -47,6 +48,10 @@ export async function registerPayment(
   }
 
   const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
 
   let existingQuery = supabase
     .from("payments")
@@ -124,6 +129,10 @@ export async function createExpense(input: CreateExpenseInput): Promise<ActionRe
   }
 
   const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
 
   const { error } = await supabase.from("expenses").insert({
     description: input.description.trim(),

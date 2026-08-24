@@ -7,7 +7,9 @@ export default async function JogadoresPage() {
   const [{ data: players }, { data: participations }] = await Promise.all([
     supabase
       .from("players")
-      .select("id, name, type, def_rating, mid_rating, atk_rating")
+      .select(
+        "id, name, type, status, photo_url, def_rating, mid_rating, atk_rating, speed_rating, stamina_rating",
+      )
       .order("name"),
     supabase
       .from("match_participations")
@@ -31,9 +33,13 @@ export default async function JogadoresPage() {
     id: player.id,
     name: player.name,
     type: player.type,
+    status: player.status,
+    photoUrl: player.photo_url,
     defRating: player.def_rating,
     midRating: player.mid_rating,
     atkRating: player.atk_rating,
+    speedRating: player.speed_rating,
+    staminaRating: player.stamina_rating,
     finishedGames: finishedGamesByPlayer.get(player.id) ?? 0,
   }));
 

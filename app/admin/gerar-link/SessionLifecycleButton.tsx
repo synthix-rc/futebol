@@ -28,7 +28,7 @@ export function SessionLifecycleButton({
   const config = CONFIG[action];
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex w-full flex-col gap-1 sm:w-auto">
       <button
         type="button"
         disabled={isPending}
@@ -41,7 +41,7 @@ export function SessionLifecycleButton({
             }
           });
         }}
-        className="rounded-md border border-foreground/20 px-4 py-2 text-sm font-semibold transition-colors hover:bg-foreground/5 disabled:opacity-50"
+        className="min-h-11 w-full rounded-md border border-foreground/20 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-foreground/5 disabled:opacity-50 sm:w-auto"
       >
         {isPending ? config.pendingLabel : config.label}
       </button>

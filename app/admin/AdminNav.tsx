@@ -5,10 +5,19 @@ import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard Inicial", short: "Dashboard", icon: "🏠" },
-  { href: "/admin/quadra", label: "A Quadra (Jogo Hoje)", short: "Quadra", icon: "⚔️" },
+  { href: "/admin/campo", label: "O Campo (Jogo Hoje)", short: "Campo", icon: "⚔️" },
   { href: "/admin/gerar-link", label: "Gerar Link (Sessão)", short: "Link", icon: "🔗" },
   { href: "/admin/jogadores", label: "Ficha de Jogadores", short: "Jogadores", icon: "👥" },
   { href: "/admin/financeiro", label: "Financeiro (Caixa)", short: "Financeiro", icon: "💰" },
+  // Sidebar only — a settings page isn't a sideline-urgent action, and the
+  // mobile bottom bar is already at a comfortable 5 items.
+  {
+    href: "/admin/configuracoes",
+    label: "Configurações",
+    short: "Config",
+    icon: "⚙️",
+    sidebarOnly: true,
+  },
 ] as const;
 
 function isActiveHref(pathname: string | null, href: string): boolean {
@@ -54,7 +63,7 @@ export function MobileBottomNav() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-foreground/10 bg-background/95 backdrop-blur sm:hidden">
-      {NAV_ITEMS.map((item) => {
+      {NAV_ITEMS.filter((item) => !("sidebarOnly" in item && item.sidebarOnly)).map((item) => {
         const active = isActiveHref(pathname, item.href);
         return (
           <Link

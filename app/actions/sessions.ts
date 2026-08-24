@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { createNextSundaySession, transitionSession } from "@/utils/sessions";
+import { requireUser } from "@/utils/auth";
 
 type ActionResult = { success: boolean; message?: string; sessionId?: string };
 
@@ -13,6 +14,10 @@ type ActionResult = { success: boolean; message?: string; sessionId?: string };
  */
 export async function generateNextSession(): Promise<ActionResult> {
   const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
 
   let sessionId: string;
   try {
@@ -37,6 +42,10 @@ export async function startSundaySession(sessionId: string): Promise<ActionResul
 
   const supabase = await createClient();
 
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
+
   try {
     await transitionSession(supabase, sessionId, "open_for_rsvp", "in_progress");
   } catch (err) {
@@ -47,7 +56,7 @@ export async function startSundaySession(sessionId: string): Promise<ActionResul
   }
 
   revalidatePath("/admin/gerar-link");
-  revalidatePath("/admin/quadra");
+  revalidatePath("/admin/campo");
   return { success: true };
 }
 
@@ -58,6 +67,10 @@ export async function closeSession(sessionId: string): Promise<ActionResult> {
   }
 
   const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
 
   const { data: activeMatch } = await supabase
     .from("matches")
@@ -83,6 +96,6 @@ export async function closeSession(sessionId: string): Promise<ActionResult> {
   }
 
   revalidatePath("/admin/gerar-link");
-  revalidatePath("/admin/quadra");
+  revalidatePath("/admin/campo");
   return { success: true };
 }

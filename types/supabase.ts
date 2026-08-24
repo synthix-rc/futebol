@@ -226,31 +226,55 @@ export type Database = {
       players: {
         Row: {
           atk_rating: number | null
+          birth_day: number | null
+          birth_month: number | null
           created_at: string | null
           def_rating: number | null
+          email: string | null
           id: string
           mid_rating: number | null
           name: string
+          phone: string | null
+          photo_url: string | null
+          speed_rating: number
+          stamina_rating: number
+          status: Database["public"]["Enums"]["player_status"]
           type: Database["public"]["Enums"]["player_type"] | null
           updated_at: string | null
         }
         Insert: {
           atk_rating?: number | null
+          birth_day?: number | null
+          birth_month?: number | null
           created_at?: string | null
           def_rating?: number | null
+          email?: string | null
           id?: string
           mid_rating?: number | null
           name: string
+          phone?: string | null
+          photo_url?: string | null
+          speed_rating?: number
+          stamina_rating?: number
+          status?: Database["public"]["Enums"]["player_status"]
           type?: Database["public"]["Enums"]["player_type"] | null
           updated_at?: string | null
         }
         Update: {
           atk_rating?: number | null
+          birth_day?: number | null
+          birth_month?: number | null
           created_at?: string | null
           def_rating?: number | null
+          email?: string | null
           id?: string
           mid_rating?: number | null
           name?: string
+          phone?: string | null
+          photo_url?: string | null
+          speed_rating?: number
+          stamina_rating?: number
+          status?: Database["public"]["Enums"]["player_status"]
           type?: Database["public"]["Enums"]["player_type"] | null
           updated_at?: string | null
         }
@@ -361,6 +385,7 @@ export type Database = {
       match_status: "in_progress" | "finished" | "canceled"
       payment_status: "pendente" | "pago"
       payment_type: "mensalidade" | "diaria"
+      player_status: "pending" | "active"
       player_type: "mensalista" | "diarista"
       rsvp_status:
         | "pending_waitlist"
@@ -499,6 +524,7 @@ export const Constants = {
       match_status: ["in_progress", "finished", "canceled"],
       payment_status: ["pendente", "pago"],
       payment_type: ["mensalidade", "diaria"],
+      player_status: ["pending", "active"],
       player_type: ["mensalista", "diarista"],
       rsvp_status: [
         "pending_waitlist",
@@ -521,6 +547,7 @@ export const Constants = {
 // `text` columns in the DB, not real Postgres enums, so they stay as
 // app-level literal unions matching the values this codebase writes.
 export type PlayerType = Enums<"player_type">;
+export type PlayerStatus = Enums<"player_status">;
 export type PresenceStatus = Enums<"rsvp_status">;
 export type MatchStatus = Enums<"match_status">;
 export type SessionStatus = Enums<"session_status">;

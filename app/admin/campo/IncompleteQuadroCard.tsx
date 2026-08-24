@@ -95,7 +95,8 @@ export function IncompleteQuadroCard({
       </ul>
 
       <p className="border-t border-foreground/10 pt-2 font-mono text-xs text-foreground/50">
-        DEF {ratings.def} · MID {ratings.mid} · ATK {ratings.atk}
+        DEF {ratings.def} · MID {ratings.mid} · ATK {ratings.atk} · VEL {ratings.speed} · RES{" "}
+        {ratings.stamina}
       </p>
 
       {missing > 0 && (
