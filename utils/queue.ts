@@ -44,21 +44,6 @@ export function sumRatings(players: QueuePlayer[]) {
 }
 
 /**
- * Returns the id of the currently active session, or null if none is open.
- */
-export async function getActiveSessionId(
-  supabase: TypedClient,
-): Promise<string | null> {
-  const { data } = await supabase
-    .from("sessions")
-    .select("id")
-    .eq("is_active", true)
-    .maybeSingle();
-
-  return data?.id ?? null;
-}
-
-/**
  * The FIFO waiting queue: every player checked in at the field who is not
  * currently tied to an in-progress match, ordered by arrival time.
  *

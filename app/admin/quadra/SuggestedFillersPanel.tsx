@@ -16,10 +16,12 @@ type PanelState =
  * next match).
  */
 export function SuggestedFillersPanel({
+  sessionId,
   neededCount,
   excludePlayerIds,
   onConfirm,
 }: {
+  sessionId: string;
   neededCount: number;
   excludePlayerIds: string[];
   onConfirm: (players: SuggestedFiller[]) => void;
@@ -29,7 +31,7 @@ export function SuggestedFillersPanel({
 
   function handleFetch() {
     startTransition(async () => {
-      const result = await getSuggestedFillers(neededCount, excludePlayerIds);
+      const result = await getSuggestedFillers(sessionId, neededCount, excludePlayerIds);
       if (!result.success) {
         setState({ phase: "error", message: result.message });
         return;

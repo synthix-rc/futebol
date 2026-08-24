@@ -18,9 +18,11 @@ const QUADRO_SIZE = 6;
  * defaults to 1 for when the field is empty.
  */
 export function QueueBoards({
+  sessionId,
   queue,
   startingQuadroNumber = 1,
 }: {
+  sessionId: string;
   queue: QueueEntry[];
   startingQuadroNumber?: number;
 }) {
@@ -41,7 +43,12 @@ export function QueueBoards({
         return players.length === QUADRO_SIZE ? (
           <QuadroCard key={players[0]!.presenceId} number={number} players={players} />
         ) : (
-          <IncompleteQuadroCard key={`incomplete-${number}`} number={number} players={players} />
+          <IncompleteQuadroCard
+            key={`incomplete-${number}`}
+            sessionId={sessionId}
+            number={number}
+            players={players}
+          />
         );
       })}
     </div>

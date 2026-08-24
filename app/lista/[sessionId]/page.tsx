@@ -1,24 +1,24 @@
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
+import { getSessionById, isRsvpOpen } from "@/utils/sessions";
 import type { PresenceStatus } from "@/types/supabase";
 import { ConfirmButton } from "./ConfirmButton";
 
-export default async function RsvpPage() {
+export default async function ListaPage({
+  params,
+}: PageProps<"/lista/[sessionId]">) {
+  const { sessionId } = await params;
   const supabase = await createClient();
 
-  const { data: session } = await supabase
-    .from("sessions")
-    .select("id, session_date")
-    .eq("is_active", true)
-    .maybeSingle();
+  const session = await getSessionById(supabase, sessionId);
 
   if (!session) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-4 px-6 py-16 text-center">
         <p className="text-4xl">⚠️</p>
-        <h1 className="text-xl font-semibold">Nenhuma sessão ativa</h1>
+        <h1 className="text-xl font-semibold">Lista não encontrada</h1>
         <p className="text-sm text-foreground/60">
-          Ainda não há uma pelada aberta para esta semana. Volte mais tarde.
+          Confira se o link está correto ou peça um novo link ao admin.
         </p>
         <Link href="/" className="text-sm underline underline-offset-4">
           Voltar para o início
@@ -27,29 +27,32 @@ export default async function RsvpPage() {
     );
   }
 
-  // Ordered by `rsvp_timestamp` (how fast the player confirmed during the
-  // week) — the Friday diarista-cutoff clock. This is deliberately not
-  // `check_in_timestamp`, which stays null until the admin checks the
-  // player in at the field on Sunday and drives the FIFO match queue
-  // instead (see utils/queue.ts).
-  const [{ data: players }, { data: presences }] = await Promise.all([
-    supabase.from("players").select("id, name, type").order("name"),
-    supabase
-      .from("session_presences")
-      .select("id, player_id, status, rsvp_timestamp, players(id, name)")
-      .eq("session_id", session.id)
-      .order("rsvp_timestamp", { ascending: true })
-      .overrideTypes<
-        Array<{
-          id: string;
-          player_id: string;
-          status: PresenceStatus;
-          rsvp_timestamp: string | null;
-          players: { id: string; name: string } | null;
-        }>,
-        { merge: false }
-      >(),
-  ]);
+  const [{ data: players }, { data: presences }, { count: confirmedCount }] =
+    await Promise.all([
+      supabase.from("players").select("id, name, type").order("name"),
+      supabase
+        .from("session_presences")
+        .select("id, player_id, status, rsvp_timestamp, players(id, name)")
+        .eq("session_id", sessionId)
+        .order("rsvp_timestamp", { ascending: true })
+        .overrideTypes<
+          Array<{
+            id: string;
+            player_id: string;
+            status: PresenceStatus;
+            rsvp_timestamp: string | null;
+            players: { id: string; name: string } | null;
+          }>,
+          { merge: false }
+        >(),
+      supabase
+        .from("session_presences")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", sessionId)
+        .eq("status", "confirmed"),
+    ]);
+
+  const gate = isRsvpOpen(session, confirmedCount ?? 0);
 
   const presenceByPlayer = new Map(
     (presences ?? []).map((presence) => [presence.player_id, presence]),
@@ -67,15 +70,22 @@ export default async function RsvpPage() {
           <h1 className="text-2xl font-bold">Lista de Presença da Semana</h1>
           <p className="text-sm text-foreground/60">
             Sessão de{" "}
-            {new Date(session.session_date).toLocaleDateString("pt-BR", {
-              timeZone: "UTC",
-            })}
+            {new Date(`${session.sessionDate}T00:00:00.000Z`).toLocaleDateString(
+              "pt-BR",
+              { timeZone: "UTC" },
+            )}
           </p>
         </div>
         <Link href="/" className="text-sm underline underline-offset-4">
           Início
         </Link>
       </div>
+
+      {!gate.open && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          🔒 {gate.reason}
+        </div>
+      )}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
@@ -97,8 +107,10 @@ export default async function RsvpPage() {
                 </div>
                 {presence ? (
                   <StatusBadge status={presence.status} />
+                ) : gate.open ? (
+                  <ConfirmButton sessionId={sessionId} playerId={player.id} />
                 ) : (
-                  <ConfirmButton playerId={player.id} />
+                  <span className="text-xs text-foreground/40">Encerrado</span>
                 )}
               </li>
             );

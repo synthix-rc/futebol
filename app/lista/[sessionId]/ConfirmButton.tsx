@@ -3,7 +3,13 @@
 import { useState, useTransition } from "react";
 import { confirmPresence } from "@/app/actions/rsvp";
 
-export function ConfirmButton({ playerId }: { playerId: string }) {
+export function ConfirmButton({
+  sessionId,
+  playerId,
+}: {
+  sessionId: string;
+  playerId: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +21,7 @@ export function ConfirmButton({ playerId }: { playerId: string }) {
         onClick={() => {
           setError(null);
           startTransition(async () => {
-            const result = await confirmPresence(playerId);
+            const result = await confirmPresence(sessionId, playerId);
             if (!result.success) {
               setError(result.message ?? "Erro ao confirmar presença.");
             }

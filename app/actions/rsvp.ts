@@ -2,37 +2,50 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
+import { getSessionById, isRsvpOpen } from "@/utils/sessions";
 
 type ActionResult = { success: boolean; message?: string };
 
 /**
- * Confirms a player's presence for the active session.
+ * Confirms a player's presence for a specific session (from the public
+ * /lista/[sessionId] link — no more implicit "the active session" lookup).
  * Mensalistas go straight to `confirmed`; diaristas land on the waitlist
  * (`pending_waitlist`) until an admin promotes/checks them in.
  *
  * This only stamps `rsvp_timestamp` — how fast the player responded during
  * the week, used for the Friday diarista cutoff rule. `check_in_timestamp`
  * (the Sunday FIFO queue/rotation clock) stays null until the admin
- * physically checks the player in at the field; see `checkInPlayer`.
+ * physically checks the player in at the field; see checkInPlayer in
+ * app/actions/match.ts.
  */
-export async function confirmPresence(playerId: string): Promise<ActionResult> {
-  if (!playerId) {
-    return { success: false, message: "Jogador inválido." };
+export async function confirmPresence(
+  sessionId: string,
+  playerId: string,
+): Promise<ActionResult> {
+  if (!sessionId || !playerId) {
+    return { success: false, message: "Requisição inválida." };
   }
 
   const supabase = await createClient();
 
-  const { data: session, error: sessionError } = await supabase
-    .from("sessions")
-    .select("id")
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (sessionError) {
-    return { success: false, message: "Erro ao buscar a sessão ativa." };
-  }
+  const session = await getSessionById(supabase, sessionId);
   if (!session) {
-    return { success: false, message: "Não há sessão ativa no momento." };
+    return { success: false, message: "Sessão não encontrada." };
+  }
+
+  const { count: confirmedCount, error: countError } = await supabase
+    .from("session_presences")
+    .select("id", { count: "exact", head: true })
+    .eq("session_id", sessionId)
+    .eq("status", "confirmed");
+
+  if (countError) {
+    return { success: false, message: "Erro ao verificar vagas disponíveis." };
+  }
+
+  const gate = isRsvpOpen(session, confirmedCount ?? 0);
+  if (!gate.open) {
+    return { success: false, message: gate.reason };
   }
 
   const { data: player, error: playerError } = await supabase
@@ -41,14 +54,14 @@ export async function confirmPresence(playerId: string): Promise<ActionResult> {
     .eq("id", playerId)
     .single();
 
-  if (playerError || !player) {
+  if (playerError || !player || !player.type) {
     return { success: false, message: "Jogador não encontrado." };
   }
 
   const { data: existing, error: existingError } = await supabase
     .from("session_presences")
     .select("id")
-    .eq("session_id", session.id)
+    .eq("session_id", sessionId)
     .eq("player_id", playerId)
     .maybeSingle();
 
@@ -62,7 +75,7 @@ export async function confirmPresence(playerId: string): Promise<ActionResult> {
   const status = player.type === "mensalista" ? "confirmed" : "pending_waitlist";
 
   const { error: insertError } = await supabase.from("session_presences").insert({
-    session_id: session.id,
+    session_id: sessionId,
     player_id: playerId,
     status,
     rsvp_timestamp: new Date().toISOString(),
@@ -72,6 +85,6 @@ export async function confirmPresence(playerId: string): Promise<ActionResult> {
     return { success: false, message: "Erro ao confirmar presença." };
   }
 
-  revalidatePath("/rsvp");
+  revalidatePath(`/lista/${sessionId}`);
   return { success: true };
 }

@@ -16,9 +16,11 @@ const QUADRO_SIZE = 6;
  * `startFirstMatch` submission and the `is_completing` bookkeeping.
  */
 export function IncompleteQuadroCard({
+  sessionId,
   number,
   players,
 }: {
+  sessionId: string;
   number: number;
   players: QueueEntry[];
 }) {
@@ -98,6 +100,7 @@ export function IncompleteQuadroCard({
 
       {missing > 0 && (
         <SuggestedFillersPanel
+          sessionId={sessionId}
           neededCount={missing}
           excludePlayerIds={excludeIds}
           onConfirm={(suggested) => setFillers((prev) => [...prev, ...suggested])}

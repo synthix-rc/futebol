@@ -9,6 +9,7 @@ import {
   requeuePlayers,
   toRoster,
 } from "@/utils/queue";
+import { getSessionById } from "@/utils/sessions";
 import type { PlayerType, WinnerTeam } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
@@ -25,20 +26,24 @@ export async function checkInPlayer(presenceId: string): Promise<ActionResult> {
 
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("session_presences")
     .update({
       status: "checked_in_field",
       check_in_timestamp: new Date().toISOString(),
     })
-    .eq("id", presenceId);
+    .eq("id", presenceId)
+    .select("session_id")
+    .maybeSingle();
 
   if (error) {
     return { success: false, message: "Erro ao fazer check-in do jogador." };
   }
 
-  revalidatePath("/admin");
-  revalidatePath("/rsvp");
+  revalidatePath("/admin/quadra");
+  if (data?.session_id) {
+    revalidatePath(`/lista/${data.session_id}`);
+  }
   return { success: true };
 }
 
@@ -61,10 +66,15 @@ const TEAM_SIZE = 6;
  * increment, so filling a gap doesn't count as a "real" appearance for them.
  */
 export async function startFirstMatch(
+  sessionId: string,
   teamAPlayerIds: string[],
   teamBPlayerIds: string[],
   completingPlayerIds: string[] = [],
 ): Promise<ActionResult> {
+  if (!sessionId) {
+    return { success: false, message: "Sessão inválida." };
+  }
+
   if (
     !Array.isArray(teamAPlayerIds) ||
     !Array.isArray(teamBPlayerIds) ||
@@ -84,21 +94,16 @@ export async function startFirstMatch(
 
   const supabase = await createClient();
 
-  const { data: session } = await supabase
-    .from("sessions")
-    .select("id")
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!session) {
-    return { success: false, message: "Não há sessão ativa no momento." };
+  const session = await getSessionById(supabase, sessionId);
+  if (!session || session.status !== "in_progress") {
+    return { success: false, message: "Esta sessão não está em andamento." };
   }
 
   try {
     // Re-validate every id against the live queue — never trust the
     // client's team split as proof those players are actually checked in
     // and free to play.
-    const queue = await getQueue(supabase, session.id);
+    const queue = await getQueue(supabase, sessionId);
     const queueIds = new Set(queue.map((entry) => entry.playerId));
     const notQueued = allIds.filter((id) => !queueIds.has(id));
 
@@ -119,7 +124,7 @@ export async function startFirstMatch(
       isCompleting: completingSet.has(playerId),
     }));
 
-    await createMatch(supabase, session.id, teamARoster, teamBRoster);
+    await createMatch(supabase, sessionId, teamARoster, teamBRoster);
   } catch (err) {
     return {
       success: false,
@@ -127,7 +132,7 @@ export async function startFirstMatch(
     };
   }
 
-  revalidatePath("/admin");
+  revalidatePath("/admin/quadra");
   return { success: true };
 }
 
@@ -234,7 +239,7 @@ export async function finishMatch(
     };
   }
 
-  revalidatePath("/admin");
+  revalidatePath("/admin/quadra");
   return { success: true };
 }
 
@@ -267,28 +272,27 @@ type SuggestedFillersResult =
  * the database here, and calling it repeatedly is safe.
  */
 export async function getSuggestedFillers(
+  sessionId: string,
   neededCount: number,
   excludePlayerIds: string[],
 ): Promise<SuggestedFillersResult> {
+  if (!sessionId) {
+    return { success: false, message: "Sessão inválida." };
+  }
   if (!Number.isInteger(neededCount) || neededCount <= 0) {
     return { success: false, message: "Quantidade de vagas inválida." };
   }
 
   const supabase = await createClient();
 
-  const { data: session } = await supabase
-    .from("sessions")
-    .select("id")
-    .eq("is_active", true)
-    .maybeSingle();
-
+  const session = await getSessionById(supabase, sessionId);
   if (!session) {
-    return { success: false, message: "Não há sessão ativa no momento." };
+    return { success: false, message: "Sessão não encontrada." };
   }
 
   try {
     const excludeSet = new Set(excludePlayerIds);
-    const pool = (await getQueue(supabase, session.id)).filter(
+    const pool = (await getQueue(supabase, sessionId)).filter(
       (entry) => !excludeSet.has(entry.playerId),
     );
 
@@ -298,7 +302,7 @@ export async function getSuggestedFillers(
 
     const gamesByPlayer = await getGamesPlayedToday(
       supabase,
-      session.id,
+      sessionId,
       pool.map((entry) => entry.playerId),
     );
 

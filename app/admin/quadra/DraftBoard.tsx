@@ -39,7 +39,13 @@ type Teams = Record<TeamId, string[]>;
  * board only lets the admin drag people between Team A and Team B within
  * that pool, never pull in anyone from outside it.
  */
-export function DraftBoard({ players }: { players: QueuePlayer[] }) {
+export function DraftBoard({
+  sessionId,
+  players,
+}: {
+  sessionId: string;
+  players: QueuePlayer[];
+}) {
   // Seeded from the prop, then extended locally when the admin accepts
   // tapa-buraco suggestions to fill a shortfall (see handleFillersConfirmed).
   const [poolPlayers, setPoolPlayers] = useState<QueuePlayer[]>(players);
@@ -122,7 +128,12 @@ export function DraftBoard({ players }: { players: QueuePlayer[] }) {
   function handleStart() {
     setError(null);
     startTransition(async () => {
-      const result = await startFirstMatch(teams.A, teams.B, Array.from(completingIds));
+      const result = await startFirstMatch(
+        sessionId,
+        teams.A,
+        teams.B,
+        Array.from(completingIds),
+      );
       if (!result.success) {
         setError(result.message ?? "Erro ao iniciar a partida.");
       }
@@ -198,6 +209,7 @@ export function DraftBoard({ players }: { players: QueuePlayer[] }) {
 
       {shortfall > 0 && (
         <SuggestedFillersPanel
+          sessionId={sessionId}
           neededCount={shortfall}
           excludePlayerIds={poolPlayers.map((player) => player.id)}
           onConfirm={handleFillersConfirmed}

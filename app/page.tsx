@@ -1,6 +1,11 @@
 import Link from "next/link";
+import { createClient } from "@/utils/supabase/server";
+import { getOpenForRsvpSession } from "@/utils/sessions";
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const openSession = await getOpenForRsvpSession(supabase);
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-16 text-center">
       <div className="flex flex-col gap-2">
@@ -14,12 +19,18 @@ export default function Home() {
       </div>
 
       <div className="flex w-full max-w-xs flex-col gap-4">
-        <Link
-          href="/rsvp"
-          className="rounded-lg bg-foreground px-6 py-4 text-sm font-semibold text-background transition-opacity hover:opacity-90"
-        >
-          Lista de Presença da Semana
-        </Link>
+        {openSession ? (
+          <Link
+            href={`/lista/${openSession.id}`}
+            className="rounded-lg bg-foreground px-6 py-4 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+          >
+            Lista de Presença da Semana
+          </Link>
+        ) : (
+          <span className="cursor-not-allowed rounded-lg border border-dashed border-foreground/20 px-6 py-4 text-sm font-semibold text-foreground/40">
+            Nenhuma lista aberta no momento
+          </span>
+        )}
         <Link
           href="/admin"
           className="rounded-lg border border-foreground/20 px-6 py-4 text-sm font-semibold transition-colors hover:bg-foreground/5"

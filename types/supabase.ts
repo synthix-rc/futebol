@@ -198,18 +198,21 @@ export type Database = {
           id: string
           is_active: boolean | null
           session_date: string
+          status: Database["public"]["Enums"]["session_status"]
         }
         Insert: {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
           session_date: string
+          status?: Database["public"]["Enums"]["session_status"]
         }
         Update: {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
           session_date?: string
+          status?: Database["public"]["Enums"]["session_status"]
         }
         Relationships: []
       }
@@ -240,6 +243,7 @@ export type Database = {
         | "confirmed"
         | "cut_off"
         | "checked_in_field"
+      session_status: "open_for_rsvp" | "in_progress" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -375,6 +379,7 @@ export const Constants = {
         "cut_off",
         "checked_in_field",
       ],
+      session_status: ["open_for_rsvp", "in_progress", "closed"],
     },
   },
 } as const
@@ -391,5 +396,6 @@ export const Constants = {
 export type PlayerType = Enums<"player_type">;
 export type PresenceStatus = Enums<"rsvp_status">;
 export type MatchStatus = Enums<"match_status">;
+export type SessionStatus = Enums<"session_status">;
 export type MatchTeam = "A" | "B";
 export type WinnerTeam = "team_a" | "team_b" | "draw";
