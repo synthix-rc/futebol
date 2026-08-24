@@ -9,8 +9,15 @@ const NAV_ITEMS = [
   { href: "/admin/gerar-link", label: "Gerar Link (Sessão)", short: "Link", icon: "🔗" },
   { href: "/admin/jogadores", label: "Ficha de Jogadores", short: "Jogadores", icon: "👥" },
   { href: "/admin/financeiro", label: "Financeiro (Caixa)", short: "Financeiro", icon: "💰" },
-  // Sidebar only — a settings page isn't a sideline-urgent action, and the
-  // mobile bottom bar is already at a comfortable 5 items.
+  // Sidebar only — neither is a sideline-urgent action, and the mobile
+  // bottom bar is already at a comfortable 5 items.
+  {
+    href: "/admin/auditoria",
+    label: "Auditoria",
+    short: "Auditoria",
+    icon: "📜",
+    sidebarOnly: true,
+  },
   {
     href: "/admin/configuracoes",
     label: "Configurações",

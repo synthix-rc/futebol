@@ -11,6 +11,7 @@ import {
 } from "@/utils/queue";
 import { getSessionById } from "@/utils/sessions";
 import { requireUser } from "@/utils/auth";
+import { logAction } from "@/utils/audit";
 import type { PlayerType, WinnerTeam } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
@@ -282,6 +283,11 @@ export async function finishMatch(
         err instanceof Error ? err.message : "Erro ao processar o resultado da partida.",
     };
   }
+
+  await logAction("finish_match", "match", matchId, {
+    result,
+    playerStats: playerStats.filter((s) => s.goals > 0 || s.assists > 0),
+  });
 
   revalidatePath("/admin/campo");
   return { success: true };

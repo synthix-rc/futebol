@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { requireUser } from "@/utils/auth";
+import { logAction } from "@/utils/audit";
 import type { ExpenseCategory, PaymentType } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
@@ -75,19 +76,30 @@ export async function registerPayment(
     return { success: false, message: "Pagamento já registrado para este período." };
   }
 
-  const { error } = await supabase.from("payments").insert({
-    player_id: input.playerId,
-    session_id: input.type === "diaria" ? input.sessionId : null,
-    amount: input.amount,
-    type: input.type,
-    status: "pago",
-    reference_month: input.referenceMonth,
-    receipt_url: input.receiptUrl ?? null,
-  });
+  const { data: inserted, error } = await supabase
+    .from("payments")
+    .insert({
+      player_id: input.playerId,
+      session_id: input.type === "diaria" ? input.sessionId : null,
+      amount: input.amount,
+      type: input.type,
+      status: "pago",
+      reference_month: input.referenceMonth,
+      receipt_url: input.receiptUrl ?? null,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     return { success: false, message: "Erro ao registrar pagamento." };
   }
+
+  await logAction("register_payment", "payment", inserted?.id, {
+    playerId: input.playerId,
+    type: input.type,
+    amount: input.amount,
+    referenceMonth: input.referenceMonth,
+  });
 
   revalidatePath("/admin/financeiro");
   revalidatePath("/financeiro-publico");
@@ -134,19 +146,29 @@ export async function createExpense(input: CreateExpenseInput): Promise<ActionRe
     return { success: false, message: "Sessão expirada. Faça login novamente." };
   }
 
-  const { error } = await supabase.from("expenses").insert({
-    description: input.description.trim(),
-    amount: input.amount,
-    expense_date: input.expenseDate,
-    category: input.category,
-    session_id: input.sessionId ?? null,
-    paid_by_player_id: input.paidByPlayerId ?? null,
-    receipt_url: input.receiptUrl ?? null,
-  });
+  const { data: inserted, error } = await supabase
+    .from("expenses")
+    .insert({
+      description: input.description.trim(),
+      amount: input.amount,
+      expense_date: input.expenseDate,
+      category: input.category,
+      session_id: input.sessionId ?? null,
+      paid_by_player_id: input.paidByPlayerId ?? null,
+      receipt_url: input.receiptUrl ?? null,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     return { success: false, message: "Erro ao registrar despesa." };
   }
+
+  await logAction("create_expense", "expense", inserted?.id, {
+    description: input.description.trim(),
+    amount: input.amount,
+    category: input.category,
+  });
 
   revalidatePath("/admin/financeiro");
   revalidatePath("/financeiro-publico");

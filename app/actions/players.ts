@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { requireUser } from "@/utils/auth";
+import { logAction } from "@/utils/audit";
 import type { PlayerType } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
@@ -245,6 +246,15 @@ export async function updateQuickEdit(
   if (error) {
     return { success: false, message: "Erro ao salvar." };
   }
+
+  await logAction("update_player_quick_edit", "player", playerId, {
+    type: input.type,
+    defRating: input.defRating,
+    midRating: input.midRating,
+    atkRating: input.atkRating,
+    speedRating: input.speedRating,
+    staminaRating: input.staminaRating,
+  });
 
   revalidatePath("/admin/jogadores");
   revalidatePath(`/admin/jogadores/${playerId}`);
