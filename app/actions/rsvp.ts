@@ -9,6 +9,11 @@ type ActionResult = { success: boolean; message?: string };
  * Confirms a player's presence for the active session.
  * Mensalistas go straight to `confirmed`; diaristas land on the waitlist
  * (`pending_waitlist`) until an admin promotes/checks them in.
+ *
+ * This only stamps `rsvp_timestamp` — how fast the player responded during
+ * the week, used for the Friday diarista cutoff rule. `check_in_timestamp`
+ * (the Sunday FIFO queue/rotation clock) stays null until the admin
+ * physically checks the player in at the field; see `checkInPlayer`.
  */
 export async function confirmPresence(playerId: string): Promise<ActionResult> {
   if (!playerId) {
@@ -60,7 +65,7 @@ export async function confirmPresence(playerId: string): Promise<ActionResult> {
     session_id: session.id,
     player_id: playerId,
     status,
-    check_in_timestamp: new Date().toISOString(),
+    rsvp_timestamp: new Date().toISOString(),
   });
 
   if (insertError) {

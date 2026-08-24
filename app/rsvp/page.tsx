@@ -27,19 +27,24 @@ export default async function RsvpPage() {
     );
   }
 
+  // Ordered by `rsvp_timestamp` (how fast the player confirmed during the
+  // week) — the Friday diarista-cutoff clock. This is deliberately not
+  // `check_in_timestamp`, which stays null until the admin checks the
+  // player in at the field on Sunday and drives the FIFO match queue
+  // instead (see utils/queue.ts).
   const [{ data: players }, { data: presences }] = await Promise.all([
     supabase.from("players").select("id, name, type").order("name"),
     supabase
       .from("session_presences")
-      .select("id, player_id, status, check_in_timestamp, players(id, name)")
+      .select("id, player_id, status, rsvp_timestamp, players(id, name)")
       .eq("session_id", session.id)
-      .order("check_in_timestamp", { ascending: true })
+      .order("rsvp_timestamp", { ascending: true })
       .overrideTypes<
         Array<{
           id: string;
           player_id: string;
           status: PresenceStatus;
-          check_in_timestamp: string | null;
+          rsvp_timestamp: string | null;
           players: { id: string; name: string } | null;
         }>,
         { merge: false }

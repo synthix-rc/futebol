@@ -34,6 +34,12 @@ export async function getActiveSessionId(
  * The FIFO waiting queue: every player checked in at the field who is not
  * currently tied to an in-progress match, ordered by arrival time.
  *
+ * Ordering (and eligibility) is driven *exclusively* by `check_in_timestamp`
+ * — the moment the admin physically checks a player in at the field on
+ * Sunday. `rsvp_timestamp` (how fast someone confirmed during the week) has
+ * no bearing on match rotation; a player without a `check_in_timestamp`
+ * hasn't checked in yet and is excluded from the queue/draw entirely.
+ *
  * Rotation (see `requeuePlayers`) appends a *new* `session_presences` row
  * each time a player is sent to the back of the line instead of mutating the
  * old one, so a player can have several `checked_in_field` rows in the same
@@ -51,6 +57,7 @@ export async function getQueue(
     )
     .eq("session_id", sessionId)
     .eq("status", "checked_in_field")
+    .not("check_in_timestamp", "is", null)
     .order("check_in_timestamp", { ascending: true })
     .overrideTypes<
       Array<{
