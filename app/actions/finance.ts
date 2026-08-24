@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
-import type { PaymentType } from "@/types/supabase";
+import type { ExpenseCategory, PaymentType } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
 
@@ -15,6 +15,8 @@ export type RegisterPaymentInput = {
   type: PaymentType;
   /** 'YYYY-MM' */
   referenceMonth: string;
+  /** Public Storage URL from utils/storage.ts's uploadReceipt, if attached. */
+  receiptUrl?: string | null;
 };
 
 const REFERENCE_MONTH_PATTERN = /^\d{4}-\d{2}$/;
@@ -75,6 +77,7 @@ export async function registerPayment(
     type: input.type,
     status: "pago",
     reference_month: input.referenceMonth,
+    receipt_url: input.receiptUrl ?? null,
   });
 
   if (error) {
@@ -82,5 +85,61 @@ export async function registerPayment(
   }
 
   revalidatePath("/admin/financeiro");
+  revalidatePath("/financeiro-publico");
+  return { success: true };
+}
+
+export type CreateExpenseInput = {
+  description: string;
+  amount: number;
+  expenseDate: string; // 'YYYY-MM-DD'
+  category: ExpenseCategory;
+  sessionId?: string | null;
+  paidByPlayerId?: string | null;
+  receiptUrl?: string | null;
+};
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  "campo",
+  "material",
+  "goleiro",
+  "churrasco",
+  "outros",
+];
+
+/** Records a "Saída" (expense) in the ledger. */
+export async function createExpense(input: CreateExpenseInput): Promise<ActionResult> {
+  if (!input.description.trim()) {
+    return { success: false, message: "Descrição é obrigatória." };
+  }
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { success: false, message: "Informe um valor válido." };
+  }
+  if (!DATE_PATTERN.test(input.expenseDate)) {
+    return { success: false, message: "Data inválida." };
+  }
+  if (!EXPENSE_CATEGORIES.includes(input.category)) {
+    return { success: false, message: "Categoria inválida." };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("expenses").insert({
+    description: input.description.trim(),
+    amount: input.amount,
+    expense_date: input.expenseDate,
+    category: input.category,
+    session_id: input.sessionId ?? null,
+    paid_by_player_id: input.paidByPlayerId ?? null,
+    receipt_url: input.receiptUrl ?? null,
+  });
+
+  if (error) {
+    return { success: false, message: "Erro ao registrar despesa." };
+  }
+
+  revalidatePath("/admin/financeiro");
+  revalidatePath("/financeiro-publico");
   return { success: true };
 }

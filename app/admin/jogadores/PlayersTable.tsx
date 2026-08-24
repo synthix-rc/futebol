@@ -17,9 +17,53 @@ export type PlayerRow = {
 export function PlayersTable({ players }: { players: PlayerRow[] }) {
   const [selected, setSelected] = useState<PlayerRow | null>(null);
 
+  if (players.length === 0) {
+    return (
+      <p className="rounded-lg border border-foreground/10 px-4 py-6 text-center text-sm text-foreground/40">
+        Nenhum jogador cadastrado.
+      </p>
+    );
+  }
+
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border border-foreground/10">
+      {/* Mobile: card list — a <table> forces horizontal scroll on narrow
+          screens, which is exactly what this app needs to avoid (99% of
+          usage is on a phone at the sideline). */}
+      <ul className="flex flex-col gap-3 sm:hidden">
+        {players.map((player) => (
+          <li key={player.id}>
+            <button
+              type="button"
+              onClick={() => setSelected(player)}
+              className="flex min-h-11 w-full flex-col gap-2 rounded-lg border border-foreground/10 p-4 text-left transition-colors active:bg-foreground/5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">{player.name}</span>
+                <span className="whitespace-nowrap rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-medium text-foreground/60">
+                  {player.type === "mensalista"
+                    ? "Mensalista"
+                    : player.type === "diarista"
+                      ? "Diarista"
+                      : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-foreground/50">
+                <span className="font-mono">
+                  D {player.defRating ?? "–"} · M {player.midRating ?? "–"} · A{" "}
+                  {player.atkRating ?? "–"}
+                </span>
+                <span>
+                  {player.finishedGames} jogo{player.finishedGames === 1 ? "" : "s"}
+                </span>
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {/* Desktop: a plain table is fine — no small-screen constraint. */}
+      <div className="hidden overflow-x-auto rounded-lg border border-foreground/10 sm:block">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-foreground/10 bg-foreground/[0.03] text-xs uppercase tracking-wide text-foreground/50">
             <tr>
@@ -30,37 +74,29 @@ export function PlayersTable({ players }: { players: PlayerRow[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-foreground/10">
-            {players.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-foreground/40">
-                  Nenhum jogador cadastrado.
+            {players.map((player) => (
+              <tr
+                key={player.id}
+                onClick={() => setSelected(player)}
+                className="cursor-pointer transition-colors hover:bg-foreground/5"
+              >
+                <td className="px-4 py-3 font-medium">{player.name}</td>
+                <td className="px-4 py-3 text-foreground/60">
+                  {player.type === "mensalista"
+                    ? "Mensalista"
+                    : player.type === "diarista"
+                      ? "Diarista"
+                      : "—"}
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-foreground/60">
+                  {player.defRating ?? "–"} / {player.midRating ?? "–"} /{" "}
+                  {player.atkRating ?? "–"}
+                </td>
+                <td className="px-4 py-3 text-foreground/60">
+                  {player.finishedGames}
                 </td>
               </tr>
-            ) : (
-              players.map((player) => (
-                <tr
-                  key={player.id}
-                  onClick={() => setSelected(player)}
-                  className="cursor-pointer transition-colors hover:bg-foreground/5"
-                >
-                  <td className="px-4 py-3 font-medium">{player.name}</td>
-                  <td className="px-4 py-3 text-foreground/60">
-                    {player.type === "mensalista"
-                      ? "Mensalista"
-                      : player.type === "diarista"
-                        ? "Diarista"
-                        : "—"}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-foreground/60">
-                    {player.defRating ?? "–"} / {player.midRating ?? "–"} /{" "}
-                    {player.atkRating ?? "–"}
-                  </td>
-                  <td className="px-4 py-3 text-foreground/60">
-                    {player.finishedGames}
-                  </td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>
@@ -121,7 +157,7 @@ function PlayerSidepanel({
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="rounded-md p-1 text-foreground/50 transition-colors hover:bg-foreground/5"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-foreground/50 transition-colors hover:bg-foreground/5"
           >
             ✕
           </button>
@@ -138,7 +174,7 @@ function PlayerSidepanel({
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
-              className="rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
+              className="min-h-11 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
             />
           </label>
 
@@ -147,17 +183,17 @@ function PlayerSidepanel({
             <select
               value={type}
               onChange={(event) => setType(event.target.value as PlayerType)}
-              className="rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
+              className="min-h-11 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
             >
               <option value="mensalista">Mensalista</option>
               <option value="diarista">Diarista</option>
             </select>
           </label>
 
-          <div className="grid grid-cols-3 gap-3">
-            <RatingInput label="Defesa" value={defRating} onChange={setDefRating} />
-            <RatingInput label="Meio" value={midRating} onChange={setMidRating} />
-            <RatingInput label="Ataque" value={atkRating} onChange={setAtkRating} />
+          <div className="flex flex-col gap-4">
+            <RangeInput label="Defesa" value={defRating} onChange={setDefRating} />
+            <RangeInput label="Meio" value={midRating} onChange={setMidRating} />
+            <RangeInput label="Ataque" value={atkRating} onChange={setAtkRating} />
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -165,7 +201,7 @@ function PlayerSidepanel({
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="min-h-11 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {isPending ? "Salvando…" : "Salvar Alterações"}
           </button>
@@ -191,13 +227,17 @@ function PlayerSidepanel({
               {player.finishedGames === 1 ? "" : "s"}
             </span>
           </p>
+          <p className="text-xs text-foreground/40">
+            Estatística ao longo do tempo — não influencia o sorteio de
+            tapa-buraco, que olha apenas quem jogou menos na sessão de hoje.
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-function RatingInput({
+function RangeInput({
   label,
   value,
   onChange,
@@ -207,15 +247,19 @@ function RatingInput({
   onChange: (value: number) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs">
-      {label}
+    <label className="flex flex-col gap-1.5 text-sm">
+      <span className="flex items-center justify-between">
+        {label}
+        <span className="font-mono text-base font-semibold">{value}</span>
+      </span>
       <input
-        type="number"
+        type="range"
         min={1}
         max={5}
+        step={1}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="rounded-md border border-foreground/20 bg-background px-2 py-1.5 text-sm"
+        className="h-11 w-full accent-foreground"
       />
     </label>
   );

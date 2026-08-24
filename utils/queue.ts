@@ -248,10 +248,20 @@ export async function createMatch(
 }
 
 /**
- * Effective `games_played_today` for each player in this session: the max
- * value across their `session_presences` rows. Rotation (`requeuePlayers`)
- * inserts a fresh row each time a player is sent back to the queue, so the
- * true up-to-date count isn't always on the most recent row.
+ * Effective `games_played_today` for each player in *this session only*:
+ * the max value across their `session_presences` rows for `sessionId`.
+ * Rotation (`requeuePlayers`) inserts a fresh row each time a player is
+ * sent back to the queue, so the true up-to-date count isn't always on the
+ * most recent row.
+ *
+ * This is the ONLY signal the tapa-buraco fill-in rule
+ * (getSuggestedFillers, app/actions/match.ts) is allowed to rank on for
+ * "who's played least" — a player's all-time match history (shown on
+ * their ficha in app/admin/jogadores, derived independently from
+ * match_participations across every session) must never leak into this
+ * query. Since session_presences rows belong to one session by
+ * construction, that separation holds structurally, not just by
+ * convention — but if this ever needs a cross-session read, don't.
  */
 export async function getGamesPlayedToday(
   supabase: TypedClient,

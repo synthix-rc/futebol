@@ -2,11 +2,23 @@ import { createClient } from "@/utils/supabase/server";
 import { getInProgressSession } from "@/utils/sessions";
 import type { PlayerType } from "@/types/supabase";
 import { PaymentsList, type PaymentRowData } from "./PaymentsList";
+import { CashForecast } from "./CashForecast";
+import { ExpenseForm } from "./ExpenseForm";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+
+function monthBounds(referenceMonth: string) {
+  const [year, month] = referenceMonth.split("-").map(Number);
+  const start = `${referenceMonth}-01`;
+  const end =
+    month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  return { start, end };
+}
 
 export default async function FinanceiroPage() {
   const supabase = await createClient();
@@ -70,8 +82,15 @@ export default async function FinanceiroPage() {
   }
 
   const currentMonth = new Date().toISOString().slice(0, 7);
+  const { start: monthStart, end: monthEnd } = monthBounds(currentMonth);
 
-  const [{ data: mensalistaPlayers }, { data: mensalidadePayments }] = await Promise.all([
+  const [
+    { data: allPlayers },
+    { data: mensalistaPlayers },
+    { data: mensalidadePayments },
+    { data: expensesThisMonthRows },
+  ] = await Promise.all([
+    supabase.from("players").select("id, name").order("name"),
     supabase.from("players").select("id, name").eq("type", "mensalista").order("name"),
     supabase
       .from("payments")
@@ -79,6 +98,11 @@ export default async function FinanceiroPage() {
       .eq("type", "mensalidade")
       .eq("reference_month", currentMonth)
       .eq("status", "pago"),
+    supabase
+      .from("expenses")
+      .select("amount")
+      .gte("expense_date", monthStart)
+      .lt("expense_date", monthEnd),
   ]);
 
   const paidMensalidadeByPlayer = new Map(
@@ -92,12 +116,38 @@ export default async function FinanceiroPage() {
     amount: paidMensalidadeByPlayer.get(player.id) ?? null,
   }));
 
+  const expensesThisMonth = (expensesThisMonthRows ?? []).reduce(
+    (sum, e) => sum + Number(e.amount),
+    0,
+  );
+  const realizedRevenue = Array.from(paidMensalidadeByPlayer.values()).reduce(
+    (sum, amount) => sum + amount,
+    0,
+  );
+
+  let suggestedFee =
+    paidMensalidadeByPlayer.size > 0
+      ? realizedRevenue / paidMensalidadeByPlayer.size
+      : 0;
+
+  if (suggestedFee === 0) {
+    const { data: anyMensalidade } = await supabase
+      .from("payments")
+      .select("amount")
+      .eq("type", "mensalidade")
+      .eq("status", "pago")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    suggestedFee = anyMensalidade ? Number(anyMensalidade.amount) : 0;
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
       <div>
         <h1 className="text-2xl font-bold">Financeiro</h1>
         <p className="text-sm text-foreground/60">
-          Controle de caixa do dia e mensalidades.
+          Controle de caixa do dia, mensalidades e despesas.
         </p>
       </div>
 
@@ -113,6 +163,13 @@ export default async function FinanceiroPage() {
           </p>
         )}
       </section>
+
+      <CashForecast
+        mensalistaCount={mensalistaPlayers?.length ?? 0}
+        realizedRevenue={realizedRevenue}
+        expensesThisMonth={expensesThisMonth}
+        suggestedFee={suggestedFee}
+      />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
@@ -142,6 +199,13 @@ export default async function FinanceiroPage() {
           referenceMonth={currentMonth}
           rows={mensalistaRows}
         />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
+          Registrar Despesa
+        </h2>
+        <ExpenseForm sessionId={session?.id ?? null} players={allPlayers ?? []} />
       </section>
     </div>
   );

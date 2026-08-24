@@ -14,6 +14,64 @@ export type Database = {
   }
   public: {
     Tables: {
+      expenses: {
+        Row: {
+          amount: number
+          category: Database["public"]["Enums"]["expense_category"]
+          created_at: string
+          description: string
+          expense_date: string
+          id: string
+          paid_by_player_id: string | null
+          receipt_url: string | null
+          session_id: string | null
+        }
+        Insert: {
+          amount: number
+          category: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          description: string
+          expense_date: string
+          id?: string
+          paid_by_player_id?: string | null
+          receipt_url?: string | null
+          session_id?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          description?: string
+          expense_date?: string
+          id?: string
+          paid_by_player_id?: string | null
+          receipt_url?: string | null
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_paid_by_player_id_fkey"
+            columns: ["paid_by_player_id"]
+            isOneToOne: false
+            referencedRelation: "player_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "expenses_paid_by_player_id_fkey"
+            columns: ["paid_by_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_participations: {
         Row: {
           assists: number | null
@@ -113,6 +171,7 @@ export type Database = {
           created_at: string
           id: string
           player_id: string
+          receipt_url: string | null
           reference_month: string
           session_id: string | null
           status: Database["public"]["Enums"]["payment_status"]
@@ -123,6 +182,7 @@ export type Database = {
           created_at?: string
           id?: string
           player_id: string
+          receipt_url?: string | null
           reference_month: string
           session_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
@@ -133,6 +193,7 @@ export type Database = {
           created_at?: string
           id?: string
           player_id?: string
+          receipt_url?: string | null
           reference_month?: string
           session_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
@@ -291,6 +352,12 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      expense_category:
+        | "campo"
+        | "material"
+        | "goleiro"
+        | "churrasco"
+        | "outros"
       match_status: "in_progress" | "finished" | "canceled"
       payment_status: "pendente" | "pago"
       payment_type: "mensalidade" | "diaria"
@@ -428,6 +495,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      expense_category: ["campo", "material", "goleiro", "churrasco", "outros"],
       match_status: ["in_progress", "finished", "canceled"],
       payment_status: ["pendente", "pago"],
       payment_type: ["mensalidade", "diaria"],
@@ -458,5 +526,6 @@ export type MatchStatus = Enums<"match_status">;
 export type SessionStatus = Enums<"session_status">;
 export type PaymentType = Enums<"payment_type">;
 export type PaymentStatus = Enums<"payment_status">;
+export type ExpenseCategory = Enums<"expense_category">;
 export type MatchTeam = "A" | "B";
 export type WinnerTeam = "team_a" | "team_b" | "draw";

@@ -37,6 +37,12 @@ export default async function Home() {
         >
           Painel do Admin (Domingo)
         </Link>
+        <Link
+          href="/financeiro-publico"
+          className="rounded-lg border border-foreground/20 px-6 py-4 text-sm font-semibold transition-colors hover:bg-foreground/5"
+        >
+          Extrato Financeiro
+        </Link>
       </div>
     </div>
   );
