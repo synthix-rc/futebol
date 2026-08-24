@@ -10,7 +10,6 @@ export default async function Home() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-16 text-center">
       <div className="flex flex-col items-center gap-4">
-        <h1 className="sr-only">Resenha Sesi Senai e Amigos</h1>
         <Image
           src="/logo-futebol.png"
           alt="Resenha Sesi Senai e Amigos"
@@ -19,10 +18,9 @@ export default async function Home() {
           priority
           className="h-12 w-12 sm:h-16 sm:w-16"
         />
-        <p className="max-w-md text-sm text-foreground/60">
-          Fila de prioridade FIFO para organizar presença e rodízio de times
-          no dia do jogo.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+          Resenha Sesi Senai e Amigos
+        </h1>
       </div>
 
       <div className="flex w-full max-w-xs flex-col gap-4">
