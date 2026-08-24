@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { createNextSundaySession, transitionSession } from "@/utils/sessions";
 import { requireUser } from "@/utils/auth";
+import { logAction } from "@/utils/audit";
 
 type ActionResult = { success: boolean; message?: string; sessionId?: string };
 
@@ -87,13 +88,17 @@ export async function closeSession(sessionId: string): Promise<ActionResult> {
   }
 
   try {
-    await transitionSession(supabase, sessionId, "in_progress", "closed");
+    await transitionSession(supabase, sessionId, "in_progress", "closed", {
+      closed_at: new Date().toISOString(),
+    });
   } catch (err) {
     return {
       success: false,
       message: err instanceof Error ? err.message : "Erro ao encerrar a sessão.",
     };
   }
+
+  await logAction("close_session", "session", sessionId);
 
   revalidatePath("/admin/gerar-link");
   revalidatePath("/admin/campo");

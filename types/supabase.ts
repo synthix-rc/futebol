@@ -14,6 +14,71 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          nome: string | null
+          phone: string | null
+          photo_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id: string
+          nome?: string | null
+          phone?: string | null
+          photo_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          nome?: string | null
+          phone?: string | null
+          photo_url?: string | null
+        }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
@@ -332,8 +397,103 @@ export type Database = {
           },
         ]
       }
+      session_votes: {
+        Row: {
+          craque_id: string | null
+          created_at: string
+          id: string
+          insuportavel_id: string | null
+          pereba_id: string | null
+          session_id: string
+          voter_player_id: string
+        }
+        Insert: {
+          craque_id?: string | null
+          created_at?: string
+          id?: string
+          insuportavel_id?: string | null
+          pereba_id?: string | null
+          session_id: string
+          voter_player_id: string
+        }
+        Update: {
+          craque_id?: string | null
+          created_at?: string
+          id?: string
+          insuportavel_id?: string | null
+          pereba_id?: string | null
+          session_id?: string
+          voter_player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_votes_craque_id_fkey"
+            columns: ["craque_id"]
+            isOneToOne: false
+            referencedRelation: "player_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "session_votes_craque_id_fkey"
+            columns: ["craque_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_votes_insuportavel_id_fkey"
+            columns: ["insuportavel_id"]
+            isOneToOne: false
+            referencedRelation: "player_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "session_votes_insuportavel_id_fkey"
+            columns: ["insuportavel_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_votes_pereba_id_fkey"
+            columns: ["pereba_id"]
+            isOneToOne: false
+            referencedRelation: "player_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "session_votes_pereba_id_fkey"
+            columns: ["pereba_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_votes_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_votes_voter_player_id_fkey"
+            columns: ["voter_player_id"]
+            isOneToOne: false
+            referencedRelation: "player_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "session_votes_voter_player_id_fkey"
+            columns: ["voter_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sessions: {
         Row: {
+          closed_at: string | null
           created_at: string | null
           id: string
           is_active: boolean | null
@@ -341,6 +501,7 @@ export type Database = {
           status: Database["public"]["Enums"]["session_status"]
         }
         Insert: {
+          closed_at?: string | null
           created_at?: string | null
           id?: string
           is_active?: boolean | null
@@ -348,6 +509,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["session_status"]
         }
         Update: {
+          closed_at?: string | null
           created_at?: string | null
           id?: string
           is_active?: boolean | null

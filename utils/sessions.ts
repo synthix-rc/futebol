@@ -6,6 +6,14 @@ type TypedClient = SupabaseClient;
 
 export const RSVP_CAP = 22;
 
+/** "Urna da Rodada" (session_votes) stays open for exactly 2 hours after
+ * closeSession stamps `closed_at` — shared between the Server Action that
+ * enforces it (app/actions/voting.ts) and the /perfil/[id] page that
+ * decides whether to show the ballot or the results. Lives here rather
+ * than in voting.ts because a "use server" file may only export async
+ * functions — a plain constant export there would fail the build. */
+export const VOTING_WINDOW_MS = 2 * 60 * 60 * 1000;
+
 export type SessionSummary = {
   id: string;
   sessionDate: string;
@@ -135,16 +143,21 @@ export async function createNextSundaySession(
  * Atomically moves a session from `from` to `to` — the update only takes
  * effect if the session is still in the expected `from` status, guarding
  * against double-transitions (e.g. two admin tabs open at once).
+ *
+ * `extraFields` merges into the same UPDATE — used by closeSession to stamp
+ * `closed_at` in the same atomic write as the status flip, rather than a
+ * separate follow-up update that could partially fail.
  */
 export async function transitionSession(
   supabase: TypedClient,
   sessionId: string,
   from: SessionStatus,
   to: SessionStatus,
+  extraFields: Record<string, unknown> = {},
 ): Promise<void> {
   const { data, error } = await supabase
     .from("sessions")
-    .update({ status: to })
+    .update({ status: to, ...extraFields })
     .eq("id", sessionId)
     .eq("status", from)
     .select("id")

@@ -1,7 +1,14 @@
+import type { ReactNode } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import { VOTING_WINDOW_MS } from "@/utils/sessions";
 import type { PaymentStatus, PaymentType } from "@/types/supabase";
 import { PlayerAvatar } from "@/app/admin/jogadores/PlayerAvatar";
+import { VotingCard, type VoteCandidate } from "./VotingCard";
+
+// See types/supabase.ts for why this isn't `SupabaseClient<Database>`.
+type TypedClient = SupabaseClient;
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -87,8 +94,12 @@ export default async function PlayerProfilePage({
     totalAssists += participation.assists ?? 0;
   }
 
+  const votingSection = await buildVotingSection(supabase, id);
+
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-10">
+      {votingSection}
+
       <div className="flex flex-col items-center gap-3 rounded-lg border border-foreground/10 p-6 text-center">
         <PlayerAvatar photoUrl={player.photo_url} name={player.name} size="lg" />
         <div>
@@ -165,5 +176,173 @@ function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
     <span className="whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
       ⏳ Pendente
     </span>
+  );
+}
+
+/**
+ * "Urna da Rodada" — decides what (if anything) to show at the top of the
+ * profile: the ballot, the results, or nothing at all if this player has
+ * never checked into a session that's since been closed.
+ *
+ * The 2h-window check here is UX only (what to render); submitSessionVotes
+ * (app/actions/voting.ts) re-derives and enforces the same window itself,
+ * never trusting this page's read.
+ */
+async function buildVotingSection(
+  supabase: TypedClient,
+  playerId: string,
+): Promise<ReactNode> {
+  const { data: lastPlayedRows } = await supabase
+    .from("session_presences")
+    .select("session_id, sessions!inner(id, status, closed_at)")
+    .eq("player_id", playerId)
+    .eq("status", "checked_in_field")
+    .eq("sessions.status", "closed")
+    // Legacy sessions closed before `closed_at` existed have it NULL —
+    // exclude them explicitly rather than relying on the DB's default null
+    // ordering (Postgres sorts NULLS FIRST on DESC, which would otherwise
+    // make a nullable-closed_at legacy row outrank a real recent one).
+    .not("sessions.closed_at", "is", null)
+    .order("closed_at", { foreignTable: "sessions", ascending: false })
+    .limit(1)
+    .overrideTypes<
+      Array<{
+        session_id: string | null;
+        sessions: { id: string; status: string; closed_at: string | null } | null;
+      }>,
+      { merge: false }
+    >();
+
+  const votingSession = lastPlayedRows?.[0]?.sessions ?? null;
+  if (!votingSession?.closed_at) {
+    return null;
+  }
+
+  const closesAt = new Date(votingSession.closed_at).getTime() + VOTING_WINDOW_MS;
+  const windowOpen = Date.now() <= closesAt;
+
+  const [{ data: participantRows }, { data: existingVote }] = await Promise.all([
+    supabase
+      .from("session_presences")
+      .select("player_id, players(id, name, photo_url)")
+      .eq("session_id", votingSession.id)
+      .eq("status", "checked_in_field")
+      .overrideTypes<
+        Array<{
+          player_id: string | null;
+          players: { id: string; name: string; photo_url: string | null } | null;
+        }>,
+        { merge: false }
+      >(),
+    supabase
+      .from("session_votes")
+      .select("id")
+      .eq("session_id", votingSession.id)
+      .eq("voter_player_id", playerId)
+      .maybeSingle(),
+  ]);
+
+  const candidates: VoteCandidate[] = (participantRows ?? [])
+    .map((row) => row.players)
+    .filter((candidate): candidate is { id: string; name: string; photo_url: string | null } =>
+      candidate !== null,
+    )
+    .map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      photoUrl: candidate.photo_url,
+    }));
+
+  if (windowOpen && !existingVote) {
+    return (
+      <VotingCard
+        sessionId={votingSession.id}
+        voterPlayerId={playerId}
+        candidates={candidates}
+        closesAt={closesAt}
+      />
+    );
+  }
+
+  const { data: votes } = await supabase
+    .from("session_votes")
+    .select("craque_id, insuportavel_id, pereba_id")
+    .eq("session_id", votingSession.id);
+
+  return <VotingResults candidates={candidates} votes={votes ?? []} />;
+}
+
+type VoteRow = { craque_id: string | null; insuportavel_id: string | null; pereba_id: string | null };
+
+const RESULT_CATEGORIES = [
+  { field: "craque_id", label: "Craque do Dia", emoji: "🌟" },
+  { field: "insuportavel_id", label: "Insuportável do Dia", emoji: "🤬" },
+  { field: "pereba_id", label: "Pereba do Dia", emoji: "🩼" },
+] as const satisfies ReadonlyArray<{ field: keyof VoteRow; label: string; emoji: string }>;
+
+function tallyWinner(votes: VoteRow[], field: keyof VoteRow): string | null {
+  const counts = new Map<string, number>();
+  for (const vote of votes) {
+    const candidateId = vote[field];
+    if (!candidateId) continue;
+    counts.set(candidateId, (counts.get(candidateId) ?? 0) + 1);
+  }
+
+  let winnerId: string | null = null;
+  let max = 0;
+  for (const [candidateId, count] of counts) {
+    if (count > max) {
+      max = count;
+      winnerId = candidateId;
+    }
+  }
+  return winnerId;
+}
+
+/** Read-only results card shown once a player has voted or the 2h window
+ * has passed — a "friendly empty state" if nobody voted at all. */
+function VotingResults({
+  candidates,
+  votes,
+}: {
+  candidates: VoteCandidate[];
+  votes: VoteRow[];
+}) {
+  if (votes.length === 0) {
+    return (
+      <section className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/50">
+        🗳️ Votação encerrada — ninguém votou nesta rodada.
+      </section>
+    );
+  }
+
+  const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+
+  return (
+    <section className="flex flex-col gap-4 rounded-lg border border-foreground/10 p-6">
+      <h2 className="text-center text-lg font-bold">🏆 Resultado da Urna</h2>
+      <div className="grid grid-cols-3 gap-3">
+        {RESULT_CATEGORIES.map(({ field, label, emoji }) => {
+          const winnerId = tallyWinner(votes, field);
+          const winner = winnerId ? candidatesById.get(winnerId) ?? null : null;
+          return (
+            <div key={field} className="flex flex-col items-center gap-1.5 text-center">
+              <span className="text-xl">{emoji}</span>
+              {winner ? (
+                <>
+                  <PlayerAvatar photoUrl={winner.photoUrl} name={winner.name} />
+                  <span className="w-full truncate text-xs font-semibold">{winner.name}</span>
+                </>
+              ) : (
+                <span className="text-xs text-foreground/40">—</span>
+              )}
+              <span className="text-[10px] uppercase tracking-wide text-foreground/40">
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
