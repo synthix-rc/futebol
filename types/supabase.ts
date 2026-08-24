@@ -107,6 +107,61 @@ export type Database = {
           },
         ]
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          player_id: string
+          reference_month: string
+          session_id: string | null
+          status: Database["public"]["Enums"]["payment_status"]
+          type: Database["public"]["Enums"]["payment_type"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          player_id: string
+          reference_month: string
+          session_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          type: Database["public"]["Enums"]["payment_type"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          player_id?: string
+          reference_month?: string
+          session_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          type?: Database["public"]["Enums"]["payment_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "payments_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       players: {
         Row: {
           atk_rating: number | null
@@ -237,6 +292,8 @@ export type Database = {
     }
     Enums: {
       match_status: "in_progress" | "finished" | "canceled"
+      payment_status: "pendente" | "pago"
+      payment_type: "mensalidade" | "diaria"
       player_type: "mensalista" | "diarista"
       rsvp_status:
         | "pending_waitlist"
@@ -372,6 +429,8 @@ export const Constants = {
   public: {
     Enums: {
       match_status: ["in_progress", "finished", "canceled"],
+      payment_status: ["pendente", "pago"],
+      payment_type: ["mensalidade", "diaria"],
       player_type: ["mensalista", "diarista"],
       rsvp_status: [
         "pending_waitlist",
@@ -397,5 +456,7 @@ export type PlayerType = Enums<"player_type">;
 export type PresenceStatus = Enums<"rsvp_status">;
 export type MatchStatus = Enums<"match_status">;
 export type SessionStatus = Enums<"session_status">;
+export type PaymentType = Enums<"payment_type">;
+export type PaymentStatus = Enums<"payment_status">;
 export type MatchTeam = "A" | "B";
 export type WinnerTeam = "team_a" | "team_b" | "draw";

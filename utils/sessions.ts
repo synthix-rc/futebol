@@ -158,16 +158,73 @@ export async function transitionSession(
   }
 }
 
+const BRAZIL_TIME_ZONE = "America/Sao_Paulo";
+
 /**
- * Saturday 23:59:59 before `sessionDate` (a Sunday), computed in UTC to
- * match how session_date is treated everywhere else in this app.
+ * The real UTC instant corresponding to the given wall-clock date/time as
+ * it would read in `timeZone`. Resolves the zone's offset via Intl instead
+ * of a hardcoded value, so it stays correct if the zone's DST rules ever
+ * change (Brazil currently observes none, but has in the past).
+ */
+function zonedTimeToUtc(
+  year: number,
+  month: number, // 1-indexed
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  timeZone: string,
+): Date {
+  const naiveUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(naiveUtcMs));
+
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+
+  // Reading the naive guess's wall-clock digits back out *in the target
+  // zone* and re-interpreting those digits as UTC reveals the zone's
+  // offset at that moment (the gap between the two is exactly the offset).
+  const asIfUtcMs = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+
+  return new Date(naiveUtcMs - (asIfUtcMs - naiveUtcMs));
+}
+
+/**
+ * Saturday 23:59:59 *Brasília time* before `sessionDate` (a Sunday) — the
+ * cutoff is a real-world deadline for people in Brazil, not a UTC one.
  */
 export function rsvpCutoff(sessionDate: string): Date {
-  const sunday = new Date(`${sessionDate}T00:00:00.000Z`);
-  const cutoff = new Date(sunday);
-  cutoff.setUTCDate(cutoff.getUTCDate() - 1);
-  cutoff.setUTCHours(23, 59, 59, 999);
-  return cutoff;
+  const [year, month, day] = sessionDate.split("-").map(Number);
+  // `day 0` normalizes to the last day of the previous month/day before,
+  // per standard Date.UTC rollover behavior.
+  const saturday = new Date(Date.UTC(year, month - 1, day - 1));
+
+  return zonedTimeToUtc(
+    saturday.getUTCFullYear(),
+    saturday.getUTCMonth() + 1,
+    saturday.getUTCDate(),
+    23,
+    59,
+    59,
+    BRAZIL_TIME_ZONE,
+  );
 }
 
 /**
