@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { approvePlayer, updatePlayerProfile } from "@/app/actions/players";
 import type { PlayerStatus, PlayerType } from "@/types/supabase";
 import { PlayerAvatar } from "../PlayerAvatar";
+import { CopyMagicLinkButton } from "./CopyMagicLinkButton";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -80,6 +81,7 @@ export function PlayerHeader({ player }: { player: PlayerHeaderData }) {
           <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             <h1 className="text-xl font-bold">{player.name}</h1>
             <StatusBadge status={player.status} />
+            <CopyMagicLinkButton playerId={player.id} />
           </div>
           <p className="text-sm text-foreground/60">
             {player.type === "mensalista" ? "Mensalista" : "Diarista"}

@@ -293,6 +293,7 @@ export type Database = {
       }
       players: {
         Row: {
+          admin_id: string | null
           atk_rating: number | null
           birth_day: number | null
           birth_month: number | null
@@ -311,6 +312,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          admin_id?: string | null
           atk_rating?: number | null
           birth_day?: number | null
           birth_month?: number | null
@@ -329,6 +331,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          admin_id?: string | null
           atk_rating?: number | null
           birth_day?: number | null
           birth_month?: number | null
@@ -346,7 +349,15 @@ export type Database = {
           type?: Database["public"]["Enums"]["player_type"] | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "players_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: true
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       session_presences: {
         Row: {
