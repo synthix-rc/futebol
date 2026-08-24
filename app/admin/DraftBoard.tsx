@@ -22,8 +22,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { startFirstMatch } from "@/app/actions/match";
+import { startFirstMatch, type SuggestedFiller } from "@/app/actions/match";
 import type { QueuePlayer } from "@/utils/queue";
+import { SuggestedFillersPanel } from "./SuggestedFillersPanel";
 
 const TEAM_SIZE = 6;
 
@@ -39,9 +40,14 @@ type Teams = Record<TeamId, string[]>;
  * that pool, never pull in anyone from outside it.
  */
 export function DraftBoard({ players }: { players: QueuePlayer[] }) {
+  // Seeded from the prop, then extended locally when the admin accepts
+  // tapa-buraco suggestions to fill a shortfall (see handleFillersConfirmed).
+  const [poolPlayers, setPoolPlayers] = useState<QueuePlayer[]>(players);
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+
   const playersById = useMemo(
-    () => new Map(players.map((player) => [player.id, player])),
-    [players],
+    () => new Map(poolPlayers.map((player) => [player.id, player])),
+    [poolPlayers],
   );
 
   const [teams, setTeams] = useState<Teams>(() => ({
@@ -116,14 +122,36 @@ export function DraftBoard({ players }: { players: QueuePlayer[] }) {
   function handleStart() {
     setError(null);
     startTransition(async () => {
-      const result = await startFirstMatch(teams.A, teams.B);
+      const result = await startFirstMatch(teams.A, teams.B, Array.from(completingIds));
       if (!result.success) {
         setError(result.message ?? "Erro ao iniciar a partida.");
       }
     });
   }
 
+  // Tapa-buraco: merges confirmed fillers into the pool and drops them into
+  // whichever team currently has fewer members, so the admin can still drag
+  // them around afterward like anyone else.
+  function handleFillersConfirmed(fillers: SuggestedFiller[]) {
+    setPoolPlayers((prev) => [...prev, ...fillers]);
+    setCompletingIds((prev) => {
+      const next = new Set(prev);
+      for (const filler of fillers) next.add(filler.id);
+      return next;
+    });
+    setTeams((prev) => {
+      const next: Teams = { A: [...prev.A], B: [...prev.B] };
+      for (const filler of fillers) {
+        const target = next.A.length <= next.B.length ? "A" : "B";
+        const side = next[target].length < TEAM_SIZE ? target : target === "A" ? "B" : "A";
+        next[side].push(filler.id);
+      }
+      return next;
+    });
+  }
+
   const activePlayer = activePlayerId ? (playersById.get(activePlayerId) ?? null) : null;
+  const shortfall = TEAM_SIZE * 2 - poolPlayers.length;
 
   if (players.length === 0) {
     return (
@@ -148,18 +176,33 @@ export function DraftBoard({ players }: { players: QueuePlayer[] }) {
             label="Time A"
             playerIds={teams.A}
             playersById={playersById}
+            completingIds={completingIds}
           />
           <TeamColumn
             teamId="B"
             label="Time B"
             playerIds={teams.B}
             playersById={playersById}
+            completingIds={completingIds}
           />
         </div>
         <DragOverlay>
-          {activePlayer ? <PlayerCard player={activePlayer} /> : null}
+          {activePlayer ? (
+            <PlayerCard
+              player={activePlayer}
+              isCompleting={completingIds.has(activePlayer.id)}
+            />
+          ) : null}
         </DragOverlay>
       </DndContext>
+
+      {shortfall > 0 && (
+        <SuggestedFillersPanel
+          neededCount={shortfall}
+          excludePlayerIds={poolPlayers.map((player) => player.id)}
+          onConfirm={handleFillersConfirmed}
+        />
+      )}
 
       <div className="flex flex-col items-center gap-2 pt-2">
         <button
@@ -173,7 +216,9 @@ export function DraftBoard({ players }: { players: QueuePlayer[] }) {
         <p className="text-xs text-foreground/50">
           {readyToStart
             ? "Confira os times e arraste para ajustar antes de começar."
-            : `Time A: ${teams.A.length}/${TEAM_SIZE} · Time B: ${teams.B.length}/${TEAM_SIZE}`}
+            : shortfall > 0
+              ? `Faltam ${shortfall} jogador${shortfall === 1 ? "" : "es"} na fila — use "Sugerir Completar" acima ou espere mais check-ins.`
+              : `Time A: ${teams.A.length}/${TEAM_SIZE} · Time B: ${teams.B.length}/${TEAM_SIZE}`}
         </p>
         {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
@@ -186,11 +231,13 @@ function TeamColumn({
   label,
   playerIds,
   playersById,
+  completingIds,
 }: {
   teamId: TeamId;
   label: string;
   playerIds: string[];
   playersById: Map<string, QueuePlayer>;
+  completingIds: Set<string>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: teamId });
 
@@ -217,7 +264,11 @@ function TeamColumn({
             playerIds.map((id) => {
               const player = playersById.get(id);
               return player ? (
-                <SortablePlayerCard key={id} player={player} />
+                <SortablePlayerCard
+                  key={id}
+                  player={player}
+                  isCompleting={completingIds.has(id)}
+                />
               ) : null;
             })
           )}
@@ -227,7 +278,13 @@ function TeamColumn({
   );
 }
 
-function SortablePlayerCard({ player }: { player: QueuePlayer }) {
+function SortablePlayerCard({
+  player,
+  isCompleting,
+}: {
+  player: QueuePlayer;
+  isCompleting: boolean;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: player.id });
 
@@ -246,24 +303,43 @@ function SortablePlayerCard({ player }: { player: QueuePlayer }) {
         isDragging ? "opacity-30" : "hover:border-foreground/30 hover:shadow-sm"
       }`}
     >
-      <PlayerCardContent player={player} />
+      <PlayerCardContent player={player} isCompleting={isCompleting} />
     </div>
   );
 }
 
-function PlayerCard({ player }: { player: QueuePlayer }) {
+function PlayerCard({
+  player,
+  isCompleting,
+}: {
+  player: QueuePlayer;
+  isCompleting: boolean;
+}) {
   return (
     <div className="cursor-grabbing rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm shadow-lg">
-      <PlayerCardContent player={player} />
+      <PlayerCardContent player={player} isCompleting={isCompleting} />
     </div>
   );
 }
 
-function PlayerCardContent({ player }: { player: QueuePlayer }) {
+function PlayerCardContent({
+  player,
+  isCompleting,
+}: {
+  player: QueuePlayer;
+  isCompleting: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div>
-        <p className="font-medium">{player.name}</p>
+        <p className="flex items-center gap-1.5 font-medium">
+          {player.name}
+          {isCompleting && (
+            <span className="whitespace-nowrap rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-medium text-sky-600 dark:text-sky-400">
+              Tapa-Buraco
+            </span>
+          )}
+        </p>
         <p className="text-[10px] text-foreground/40">
           {player.type === "mensalista" ? "Mensalista" : "Diarista"}
         </p>

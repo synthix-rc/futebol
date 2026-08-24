@@ -1,4 +1,5 @@
-import type { QueueEntry, QueuePlayer } from "@/utils/queue";
+import { sumRatings, type QueueEntry } from "@/utils/queue";
+import { IncompleteQuadroCard } from "./IncompleteQuadroCard";
 
 const QUADRO_SIZE = 6;
 
@@ -8,9 +9,13 @@ const QUADRO_SIZE = 6;
  * group of 6 plays next, then next, and so on.
  *
  * Purely presentational — no interactivity, so this stays a Server
- * Component. `startingQuadroNumber` lets the caller account for the two
- * lineups already on the field (Quadro 1 and 2) when a match is in
- * progress; it defaults to 1 for when the field is empty.
+ * Component; only the trailing, possibly-incomplete quadro (at most one,
+ * since chunking fills front-to-back) needs interactivity, so that one card
+ * is delegated to the Client Component IncompleteQuadroCard.
+ *
+ * `startingQuadroNumber` lets the caller account for the two lineups
+ * already on the field (Quadro 1 and 2) when a match is in progress; it
+ * defaults to 1 for when the field is empty.
  */
 export function QueueBoards({
   queue,
@@ -31,13 +36,14 @@ export function QueueBoards({
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {quadros.map((players, index) => (
-        <QuadroCard
-          key={players[0]?.presenceId ?? index}
-          number={startingQuadroNumber + index}
-          players={players}
-        />
-      ))}
+      {quadros.map((players, index) => {
+        const number = startingQuadroNumber + index;
+        return players.length === QUADRO_SIZE ? (
+          <QuadroCard key={players[0]!.presenceId} number={number} players={players} />
+        ) : (
+          <IncompleteQuadroCard key={`incomplete-${number}`} number={number} players={players} />
+        );
+      })}
     </div>
   );
 }
@@ -49,22 +55,15 @@ function QuadroCard({
   number: number;
   players: QueueEntry[];
 }) {
-  const missing = QUADRO_SIZE - players.length;
   const ratings = sumRatings(players.map((entry) => entry.player));
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-foreground/10 p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Quadro {number}</h3>
-        {missing > 0 ? (
-          <span className="whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-            Incompleto · Faltam {missing}
-          </span>
-        ) : (
-          <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-medium text-foreground/50">
-            Completo
-          </span>
-        )}
+        <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-medium text-foreground/50">
+          Completo
+        </span>
       </div>
 
       <ul className="flex flex-col gap-1 text-sm">
@@ -94,15 +93,4 @@ function chunk<T>(items: T[], size: number): T[][] {
     chunks.push(items.slice(i, i + size));
   }
   return chunks;
-}
-
-function sumRatings(players: QueuePlayer[]) {
-  return players.reduce(
-    (totals, player) => ({
-      def: totals.def + (player.defRating ?? 0),
-      mid: totals.mid + (player.midRating ?? 0),
-      atk: totals.atk + (player.atkRating ?? 0),
-    }),
-    { def: 0, mid: 0, atk: 0 },
-  );
 }

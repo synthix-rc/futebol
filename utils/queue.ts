@@ -20,6 +20,29 @@ export type QueueEntry = {
   player: QueuePlayer;
 };
 
+/** One player's spot on a roster being sent to `createMatch`. */
+export type RosterEntry = {
+  playerId: string;
+  /** Tapa-buraco fill-in: played this match, but it shouldn't count toward
+   * their real per-day tally (see `createMatch`). */
+  isCompleting?: boolean;
+};
+
+export function toRoster(playerIds: string[]): RosterEntry[] {
+  return playerIds.map((playerId) => ({ playerId }));
+}
+
+export function sumRatings(players: QueuePlayer[]) {
+  return players.reduce(
+    (totals, player) => ({
+      def: totals.def + (player.defRating ?? 0),
+      mid: totals.mid + (player.midRating ?? 0),
+      atk: totals.atk + (player.atkRating ?? 0),
+    }),
+    { def: 0, mid: 0, atk: 0 },
+  );
+}
+
 /**
  * Returns the id of the currently active session, or null if none is open.
  */
@@ -177,12 +200,15 @@ export async function requeuePlayers(
 
 /**
  * Creates a new in-progress match with two rosters of 6 players each.
+ * Entries flagged `isCompleting` (tapa-buraco fill-ins) are recorded as
+ * such on `match_participations` and excluded from the `games_played_today`
+ * increment below, so a fill-in appearance doesn't inflate their real tally.
  */
 export async function createMatch(
   supabase: TypedClient,
   sessionId: string,
-  teamAPlayerIds: string[],
-  teamBPlayerIds: string[],
+  teamA: RosterEntry[],
+  teamB: RosterEntry[],
 ): Promise<string> {
   const { data: match, error: matchError } = await supabase
     .from("matches")
@@ -203,16 +229,19 @@ export async function createMatch(
     match_id: string;
     player_id: string;
     team: MatchTeam;
+    is_completing: boolean;
   }[] = [
-    ...teamAPlayerIds.map((playerId) => ({
+    ...teamA.map((entry) => ({
       match_id: match.id,
-      player_id: playerId,
+      player_id: entry.playerId,
       team: "A" as const,
+      is_completing: entry.isCompleting ?? false,
     })),
-    ...teamBPlayerIds.map((playerId) => ({
+    ...teamB.map((entry) => ({
       match_id: match.id,
-      player_id: playerId,
+      player_id: entry.playerId,
       team: "B" as const,
+      is_completing: entry.isCompleting ?? false,
     })),
   ];
 
@@ -224,5 +253,101 @@ export async function createMatch(
     throw new Error("Erro ao escalar os times da partida.");
   }
 
+  const countingPlayerIds = [...teamA, ...teamB]
+    .filter((entry) => !entry.isCompleting)
+    .map((entry) => entry.playerId);
+
+  await incrementGamesPlayed(supabase, sessionId, countingPlayerIds);
+
   return match.id;
+}
+
+/**
+ * Effective `games_played_today` for each player in this session: the max
+ * value across their `session_presences` rows. Rotation (`requeuePlayers`)
+ * inserts a fresh row each time a player is sent back to the queue, so the
+ * true up-to-date count isn't always on the most recent row.
+ */
+export async function getGamesPlayedToday(
+  supabase: TypedClient,
+  sessionId: string,
+  playerIds: string[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (playerIds.length === 0) return result;
+
+  const { data, error } = await supabase
+    .from("session_presences")
+    .select("player_id, games_played_today")
+    .eq("session_id", sessionId)
+    .in("player_id", playerIds);
+
+  if (error) {
+    throw new Error("Erro ao carregar partidas jogadas hoje.");
+  }
+
+  for (const row of data ?? []) {
+    const games = row.games_played_today ?? 0;
+    const current = result.get(row.player_id) ?? 0;
+    if (games > current) result.set(row.player_id, games);
+  }
+
+  return result;
+}
+
+/**
+ * Marks `playerIds` as having played one more match today: reads each
+ * player's current effective count (see `getGamesPlayedToday`) and writes
+ * count+1 onto their most recent `session_presences` row, so future reads
+ * pick it up regardless of how many rotation rows they've accumulated.
+ */
+async function incrementGamesPlayed(
+  supabase: TypedClient,
+  sessionId: string,
+  playerIds: string[],
+) {
+  if (playerIds.length === 0) return;
+
+  const { data: rows, error } = await supabase
+    .from("session_presences")
+    .select("id, player_id, check_in_timestamp, games_played_today")
+    .eq("session_id", sessionId)
+    .in("player_id", playerIds);
+
+  if (error) {
+    throw new Error("Erro ao atualizar partidas jogadas hoje.");
+  }
+
+  type Tracked = { latestRowId: string; latestTimestamp: string; maxGames: number };
+  const byPlayer = new Map<string, Tracked>();
+
+  for (const row of rows ?? []) {
+    const games = row.games_played_today ?? 0;
+    const ts = row.check_in_timestamp ?? "";
+    const current = byPlayer.get(row.player_id);
+
+    if (!current) {
+      byPlayer.set(row.player_id, { latestRowId: row.id, latestTimestamp: ts, maxGames: games });
+      continue;
+    }
+
+    byPlayer.set(row.player_id, {
+      latestRowId: ts > current.latestTimestamp ? row.id : current.latestRowId,
+      latestTimestamp: ts > current.latestTimestamp ? ts : current.latestTimestamp,
+      maxGames: Math.max(current.maxGames, games),
+    });
+  }
+
+  const results = await Promise.all(
+    Array.from(byPlayer.values()).map((entry) =>
+      supabase
+        .from("session_presences")
+        .update({ games_played_today: entry.maxGames + 1 })
+        .eq("id", entry.latestRowId),
+    ),
+  );
+
+  if (results.some((r) => r.error)) {
+    throw new Error("Erro ao atualizar partidas jogadas hoje.");
+  }
 }
