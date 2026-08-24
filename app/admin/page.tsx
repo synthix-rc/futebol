@@ -5,6 +5,7 @@ import type { MatchTeam, PlayerType, PresenceStatus } from "@/types/supabase";
 import { CheckInButton } from "./CheckInButton";
 import { DraftBoard } from "./DraftBoard";
 import { FinishMatchButtons } from "./FinishMatchButtons";
+import { QueueBoards } from "./QueueBoards";
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -123,32 +124,9 @@ export default async function AdminPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
-          🚶 Fila de Prioridade (ordem de chegada)
+          🚶 Fila de Prioridade (por Quadro)
         </h2>
-        {queue.length === 0 ? (
-          <p className="text-sm text-foreground/40">
-            Ninguém disponível na fila no momento.
-          </p>
-        ) : (
-          <ol className="flex flex-col gap-2">
-            {queue.map((entry, index) => (
-              <li
-                key={entry.presenceId}
-                className="flex items-center gap-3 rounded-md border border-foreground/10 px-3 py-2 text-sm"
-              >
-                <span className="text-xs font-mono text-foreground/40">
-                  {index + 1}
-                </span>
-                {entry.player.name}
-                <span className="ml-auto text-xs text-foreground/40">
-                  {new Date(entry.checkInTimestamp).toLocaleTimeString(
-                    "pt-BR",
-                  )}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
+        <QueueBoards queue={queue} startingQuadroNumber={activeMatch ? 3 : 1} />
       </section>
 
       <section className="grid gap-6 sm:grid-cols-2">
