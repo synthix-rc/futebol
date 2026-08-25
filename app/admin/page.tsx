@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import { getInProgressSession, getOpenForRsvpSession } from "@/utils/sessions";
-import { average, CURRENT_MENSALIDADE_FEE, monthBounds, monthKey } from "@/utils/dashboardMetrics";
+import { average, formatMonthLabel, GO_LIVE_MONTH, monthBounds, monthKey } from "@/utils/dashboardMetrics";
+import { getMonthlyDebtors } from "@/app/actions/stats";
 import type { PlayerType } from "@/types/supabase";
 import { PlayerAvatar } from "@/app/admin/jogadores/PlayerAvatar";
 
@@ -39,9 +40,9 @@ export default async function AdminDashboardPage() {
     { data: activePlayerRows },
     { data: allPaidPayments },
     { data: allExpenses },
-    { data: mensalidadePaidThisMonth },
     { data: expensesThisMonthRows },
     { data: diaristaPresenceRows },
+    { debtors, totalDebt },
   ] = await Promise.all([
     getInProgressSession(supabase),
     getOpenForRsvpSession(supabase),
@@ -51,12 +52,6 @@ export default async function AdminDashboardPage() {
       .eq("status", "active"),
     supabase.from("payments").select("amount").eq("status", "pago"),
     supabase.from("expenses").select("amount"),
-    supabase
-      .from("payments")
-      .select("player_id")
-      .eq("type", "mensalidade")
-      .eq("reference_month", currentMonth)
-      .eq("status", "pago"),
     supabase
       .from("expenses")
       .select("amount")
@@ -74,6 +69,7 @@ export default async function AdminDashboardPage() {
         }>,
         { merge: false }
       >(),
+    getMonthlyDebtors(),
   ]);
 
   const activePlayers: ActivePlayer[] = (activePlayerRows ?? []).map((player) => ({
@@ -108,13 +104,6 @@ export default async function AdminDashboardPage() {
   const birthdaysThisMonth = activePlayers
     .filter((player) => player.birthMonth === currentMonthNumber && player.birthDay)
     .sort((a, b) => (a.birthDay ?? 0) - (b.birthDay ?? 0));
-
-  // Devedores do mês — mensalistas ativos sem pagamento 'pago' registrado
-  // para o mês corrente. Valor devido assume a mensalidade atual (não há
-  // "fee" armazenado em lugar nenhum do schema — ver dashboardMetrics.ts).
-  const paidPlayerIds = new Set((mensalidadePaidThisMonth ?? []).map((p) => p.player_id));
-  const devedores = mensalistasAtivos.filter((player) => !paidPlayerIds.has(player.id));
-  const totalDivida = devedores.length * CURRENT_MENSALIDADE_FEE;
 
   // Despesas do mês.
   const despesasDoMes = sum(expensesThisMonthRows);
@@ -186,17 +175,21 @@ export default async function AdminDashboardPage() {
         </Panel>
 
         <Panel title="💸 Devedores do Mês">
-          {devedores.length === 0 ? (
+          {debtors.length === 0 ? (
             <EmptyState text="Todos os mensalistas em dia. 🎉" />
           ) : (
             <>
+              <p className="mb-2 text-xs text-foreground/50">
+                Conta corrente desde {formatMonthLabel(GO_LIVE_MONTH)} — inclui meses
+                anteriores não pagos.
+              </p>
               <ul className="flex flex-col gap-2">
-                {devedores.map((player) => (
-                  <li key={player.id} className="flex items-center gap-3 text-sm">
-                    <PlayerAvatar photoUrl={player.photoUrl} name={player.name} />
-                    <span className="flex-1 truncate">{player.name}</span>
+                {debtors.map((debtor) => (
+                  <li key={debtor.playerId} className="flex items-center gap-3 text-sm">
+                    <PlayerAvatar photoUrl={debtor.photoUrl} name={debtor.name} />
+                    <span className="flex-1 truncate">{debtor.name}</span>
                     <span className="font-mono text-xs text-red-500">
-                      {currency.format(CURRENT_MENSALIDADE_FEE)}
+                      {currency.format(debtor.owed)}
                     </span>
                   </li>
                 ))}
@@ -204,7 +197,7 @@ export default async function AdminDashboardPage() {
               <p className="mt-3 border-t border-foreground/10 pt-3 text-xs text-foreground/50">
                 Total em aberto:{" "}
                 <span className="font-semibold text-red-500">
-                  {currency.format(totalDivida)}
+                  {currency.format(totalDebt)}
                 </span>
               </p>
             </>

@@ -53,3 +53,31 @@ export function trailingMonths(count: number, from: Date = new Date()): string[]
   return months;
 }
 
+/** The system's own "Go-Live" reference month — no mensalista owes
+ * anything for months before this, no matter when their `players` row
+ * was actually created (e.g. a historical member backfilled with an
+ * older `created_at`). */
+export const GO_LIVE_MONTH = "2026-08";
+
+/**
+ * How many months of mensalidade a player owes for — "conta corrente",
+ * not just the current month — counting the current month as already
+ * due: entrou em Agosto, em Agosto já deve o mês 1.
+ *
+ * The billing start is `max(createdMonth, GO_LIVE_MONTH)`: a plain
+ * string comparison is safe here because 'YYYY-MM' is zero-padded and
+ * fixed-width, so lexicographic order matches chronological order —
+ * no need to parse either side into a Date to compare them.
+ */
+export function monthsOwed(createdAtISO: string | null, asOf: Date = new Date()): number {
+  const createdMonth = createdAtISO ? monthKey(createdAtISO) : GO_LIVE_MONTH;
+  const billingStart = createdMonth > GO_LIVE_MONTH ? createdMonth : GO_LIVE_MONTH;
+  const currentMonth = monthKey(asOf.toISOString());
+
+  const [startYear, startMonthNum] = billingStart.split("-").map(Number);
+  const [curYear, curMonthNum] = currentMonth.split("-").map(Number);
+
+  const elapsed = curYear * 12 + curMonthNum - (startYear * 12 + startMonthNum) + 1;
+  return Math.max(1, elapsed);
+}
+

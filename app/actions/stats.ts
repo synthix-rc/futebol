@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { requireUser } from "@/utils/auth";
+import { CURRENT_MENSALIDADE_FEE, monthsOwed } from "@/utils/dashboardMetrics";
 
 const TOP_N = 10;
 
@@ -144,4 +145,93 @@ export async function getPlayerRankings(): Promise<PlayerRankings> {
     topInsuportaveis: toRanking(insuportavelCount),
     topPerebas: toRanking(perebaCount),
   };
+}
+
+export type DebtorEntry = {
+  playerId: string;
+  name: string;
+  photoUrl: string | null;
+  /** Saldo devedor em R$ — sempre > 0 (ver getMonthlyDebtors). */
+  owed: number;
+};
+
+export type MonthlyDebtors = {
+  debtors: DebtorEntry[];
+  totalDebt: number;
+};
+
+/**
+ * "Devedores do Mês" — conta corrente, não só o mês vigente: cada
+ * mensalista ativo deve `mensesDevidos × CURRENT_MENSALIDADE_FEE` desde
+ * o Go-Live (ou desde que entrou, se depois disso — ver
+ * utils/dashboardMetrics.ts's monthsOwed), e paga isso conforme faz
+ * pagamentos. O saldo é cumulativo: um mês sem pagar continua pesando
+ * nos meses seguintes até ser quitado, em vez de "resetar" a cada mês
+ * como a versão anterior deste card fazia.
+ *
+ * "Total Pago" soma pagamentos 'pago' que são category='campo' OU
+ * type='mensalidade' — cobre tanto a mensalidade em si quanto qualquer
+ * diária com esse rótulo, mas nunca uma contribuição de churrasco
+ * (category='churrasco'), que é uma dívida completamente separada.
+ *
+ * Só entram na lista jogadores com saldo devedor > 0 — quem está em dia
+ * ou pagou a mais simplesmente não aparece.
+ */
+export async function getMonthlyDebtors(): Promise<MonthlyDebtors> {
+  const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { debtors: [], totalDebt: 0 };
+  }
+
+  const { data: mensalistaPlayers } = await supabase
+    .from("players")
+    .select("id, name, photo_url, created_at")
+    .eq("status", "active")
+    .eq("type", "mensalista");
+
+  if (!mensalistaPlayers || mensalistaPlayers.length === 0) {
+    return { debtors: [], totalDebt: 0 };
+  }
+
+  const playerIds = mensalistaPlayers.map((player) => player.id);
+
+  const { data: campoPayments } = await supabase
+    .from("payments")
+    .select("player_id, amount")
+    .in("player_id", playerIds)
+    .eq("status", "pago")
+    .or("category.eq.campo,type.eq.mensalidade");
+
+  const paidByPlayer = new Map<string, number>();
+  for (const payment of campoPayments ?? []) {
+    paidByPlayer.set(
+      payment.player_id,
+      (paidByPlayer.get(payment.player_id) ?? 0) + Number(payment.amount),
+    );
+  }
+
+  const now = new Date();
+  const debtors: DebtorEntry[] = [];
+  let totalDebt = 0;
+
+  for (const player of mensalistaPlayers) {
+    const expected = monthsOwed(player.created_at, now) * CURRENT_MENSALIDADE_FEE;
+    const paid = paidByPlayer.get(player.id) ?? 0;
+    const owed = expected - paid;
+
+    if (owed > 0) {
+      debtors.push({
+        playerId: player.id,
+        name: player.name,
+        photoUrl: player.photo_url,
+        owed,
+      });
+      totalDebt += owed;
+    }
+  }
+
+  debtors.sort((a, b) => b.owed - a.owed);
+
+  return { debtors, totalDebt };
 }
