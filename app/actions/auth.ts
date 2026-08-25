@@ -6,7 +6,7 @@ import { requireUser } from "@/utils/auth";
 
 type ActionResult = { success: boolean; message?: string };
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 
 export type SignInInput = {
   email: string;
@@ -33,8 +33,16 @@ export async function signIn(input: SignInInput): Promise<ActionResult> {
     return { success: false, message: "E-mail ou senha inválidos." };
   }
 
+  // `startsWith("/")` alone isn't enough — "//evil.com" also starts with
+  // "/" but browsers treat a leading "//" as protocol-relative, i.e. an
+  // external redirect. Reject that case explicitly to close the open
+  // redirect (a crafted ?redirectTo=//phishing-site.com would otherwise
+  // bounce a just-logged-in admin off to an external host).
+  const isSafeInternalPath = (path: string) =>
+    path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\");
+
   const destination =
-    input.redirectTo && input.redirectTo.startsWith("/") ? input.redirectTo : "/admin";
+    input.redirectTo && isSafeInternalPath(input.redirectTo) ? input.redirectTo : "/admin";
 
   redirect(destination);
 }

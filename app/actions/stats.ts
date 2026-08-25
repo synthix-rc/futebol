@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { requireUser } from "@/utils/auth";
 
 const TOP_N = 10;
 
@@ -33,11 +34,32 @@ export type PlayerRankings = {
  * only, same "Jogos" definition used on every player ficha); vote counts
  * come from session_votes. Both are filtered to `created_at` within the
  * current calendar year, computed in UTC.
+ *
+ * Like every other Server Action here, this re-checks `requireUser()` on
+ * its own rather than trusting that only the (already admin-gated)
+ * /admin/jogadores page ever calls it — an exported "use server" function
+ * is a directly POST-able RPC endpoint regardless of which page imports
+ * it, so the page's own auth gate doesn't cover it. An unauthenticated
+ * call gets back the same shape with everything empty, rather than
+ * throwing — this is awaited directly by a Server Component with no
+ * error boundary of its own.
  */
 export async function getPlayerRankings(): Promise<PlayerRankings> {
   const supabase = await createClient();
-
   const year = new Date().getUTCFullYear();
+
+  if (!(await requireUser(supabase))) {
+    return {
+      year,
+      topGames: [],
+      topScorers: [],
+      topAssists: [],
+      topCraques: [],
+      topInsuportaveis: [],
+      topPerebas: [],
+    };
+  }
+
   const yearStart = `${year}-01-01T00:00:00.000Z`;
   const yearEnd = `${year + 1}-01-01T00:00:00.000Z`;
 
