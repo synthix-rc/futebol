@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { registerPayment } from "@/app/actions/finance";
 import type { PaymentCategory, PaymentType } from "@/types/supabase";
 import { ReceiptUploadField } from "../ReceiptUploadField";
+import { CategoryBadge } from "../jogadores/[id]/PaymentHistoryList";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -107,13 +108,9 @@ function PaymentRow({
       <span className="font-medium">{row.name}</span>
 
       {paid ? (
-        <span className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+        <span className="flex flex-wrap items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
           ✅ Pago{paidAmount != null ? ` — ${currency.format(paidAmount)}` : ""}
-          {paidCategory && (
-            <span className="text-xs font-medium text-foreground/50">
-              ({CATEGORY_LABELS[paidCategory]})
-            </span>
-          )}
+          {paidCategory && <CategoryBadge category={paidCategory} />}
         </span>
       ) : (
         <div className="flex flex-col gap-2">

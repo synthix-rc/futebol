@@ -11,6 +11,7 @@ import {
   trailingMonths,
 } from "@/utils/dashboardMetrics";
 import type { PaymentCategory, PlayerType } from "@/types/supabase";
+import { getMonthlyIncomeBreakdown } from "@/app/actions/stats";
 import { PaymentsList, type PaymentRowData } from "./PaymentsList";
 import { ExpenseForm } from "./ExpenseForm";
 
@@ -101,6 +102,7 @@ export default async function FinanceiroPage() {
     { data: diaristaPresenceRows },
     { data: trailingPayments },
     { data: trailingExpenses },
+    incomeBreakdown,
   ] = await Promise.all([
     supabase.from("players").select("id, name").order("name"),
     supabase.from("players").select("id, name").eq("type", "mensalista").order("name"),
@@ -132,6 +134,7 @@ export default async function FinanceiroPage() {
       .select("amount, expense_date")
       .gte("expense_date", trailingRangeStart)
       .lt("expense_date", monthStart),
+    getMonthlyIncomeBreakdown(),
   ]);
 
   const paidMensalidadeByPlayer = new Map(
@@ -205,18 +208,47 @@ export default async function FinanceiroPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-foreground/10 bg-card p-6">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
-          💰 Caixa do Dia
-        </h2>
-        {session ? (
-          <p className="mt-2 text-3xl font-bold">{currency.format(cashTotal)}</p>
-        ) : (
-          <p className="mt-2 text-sm text-foreground/40">
-            Nenhuma sessão em andamento no momento.
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <section className="rounded-lg border border-foreground/10 bg-card p-6">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
+            💰 Caixa do Dia
+          </h2>
+          {session ? (
+            <p className="mt-2 text-3xl font-bold">{currency.format(cashTotal)}</p>
+          ) : (
+            <p className="mt-2 text-sm text-foreground/40">
+              Nenhuma sessão em andamento no momento.
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-foreground/10 bg-card p-6">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
+            📊 Resumo de Entradas do Mês
+          </h2>
+          <p className="mt-2 text-3xl font-bold">
+            {currency.format(incomeBreakdown.totalGeral)}
           </p>
-        )}
-      </section>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-0.5 rounded-md bg-blue-500/10 px-3 py-2">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                ⚽ Campo/Mensalidade
+              </span>
+              <span className="font-mono text-sm font-semibold text-blue-600 dark:text-blue-400">
+                {currency.format(incomeBreakdown.totalCampo)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5 rounded-md bg-orange-500/10 px-3 py-2">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-orange-600 dark:text-orange-400">
+                🥩 Churrasco
+              </span>
+              <span className="font-mono text-sm font-semibold text-orange-600 dark:text-orange-400">
+                {currency.format(incomeBreakdown.totalChurrasco)}
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
         <div className="flex flex-col gap-6">

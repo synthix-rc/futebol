@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { requireUser } from "@/utils/auth";
-import { CURRENT_MENSALIDADE_FEE, monthsOwed } from "@/utils/dashboardMetrics";
+import { CURRENT_MENSALIDADE_FEE, monthBounds, monthKey, monthsOwed } from "@/utils/dashboardMetrics";
 
 const TOP_N = 10;
 
@@ -234,4 +234,59 @@ export async function getMonthlyDebtors(): Promise<MonthlyDebtors> {
   debtors.sort((a, b) => b.owed - a.owed);
 
   return { debtors, totalDebt };
+}
+
+export type MonthlyIncomeBreakdown = {
+  totalGeral: number;
+  totalCampo: number;
+  totalChurrasco: number;
+};
+
+/**
+ * "Resumo de Entradas do Mês" — every payment marked 'pago' whose
+ * `created_at` falls within the current calendar month (same
+ * `monthBounds` boundary pattern already used for "Despesas do Mês" on
+ * the Dashboard), split into the two `category` buckets. Every payment is
+ * either 'campo' or 'churrasco' — mensalidade payments are always
+ * 'campo', so "Total Campo" already covers the "campo ou mensalidade"
+ * framing without a separate check.
+ *
+ * Deliberately keyed off `created_at` (when the money actually came in),
+ * not `reference_month` (which period a mensalidade is credited toward)
+ * — those can differ when a due is paid late, and this card is about
+ * cash received this month, not dues assigned to it.
+ */
+export async function getMonthlyIncomeBreakdown(): Promise<MonthlyIncomeBreakdown> {
+  const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { totalGeral: 0, totalCampo: 0, totalChurrasco: 0 };
+  }
+
+  const currentMonth = monthKey(new Date().toISOString());
+  const { start, end } = monthBounds(currentMonth);
+
+  const { data: payments } = await supabase
+    .from("payments")
+    .select("amount, category")
+    .eq("status", "pago")
+    .gte("created_at", start)
+    .lt("created_at", end);
+
+  let totalCampo = 0;
+  let totalChurrasco = 0;
+  for (const payment of payments ?? []) {
+    const amount = Number(payment.amount);
+    if (payment.category === "churrasco") {
+      totalChurrasco += amount;
+    } else {
+      totalCampo += amount;
+    }
+  }
+
+  return {
+    totalGeral: totalCampo + totalChurrasco,
+    totalCampo,
+    totalChurrasco,
+  };
 }
