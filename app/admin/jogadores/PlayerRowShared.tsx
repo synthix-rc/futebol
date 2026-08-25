@@ -1,9 +1,15 @@
 // Plain presentational pieces shared by PlayerTableRow (desktop) and
 // PlayerListCard (mobile) — no hooks/state of their own, so no "use
 // client" needed here; they work fine rendered inside either tree.
-import type { PlayerType } from "@/types/supabase";
+import type { PlayerStatus, PlayerType } from "@/types/supabase";
 
 const RATING_OPTIONS = [1, 2, 3, 4, 5];
+
+export const STATUS_OPTIONS: Array<{ value: PlayerStatus; label: string }> = [
+  { value: "active", label: "Ativo" },
+  { value: "pending", label: "Pendente" },
+  { value: "inactive", label: "Inativo" },
+];
 
 export function TypeBadge({ type }: { type: PlayerType | null }) {
   return (
@@ -13,10 +19,27 @@ export function TypeBadge({ type }: { type: PlayerType | null }) {
   );
 }
 
-export function PendingBadge() {
+/** Every status a player row can be in — always rendered (view mode
+ * previously left `active` blank, which read as broken/empty rather than
+ * "nothing to flag"). */
+export function StatusBadge({ status }: { status: PlayerStatus }) {
+  if (status === "active") {
+    return (
+      <span className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+        ✅ Ativo
+      </span>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <span className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+        ⏳ Pendente
+      </span>
+    );
+  }
   return (
-    <span className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-      ⏳ Pendente
+    <span className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-medium text-foreground/50">
+      🚫 Inativo
     </span>
   );
 }

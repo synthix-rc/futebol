@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { requireUser } from "@/utils/auth";
 import { logAction } from "@/utils/audit";
-import type { PlayerType } from "@/types/supabase";
+import type { PlayerStatus, PlayerType } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
 
 const RATING_MIN = 1;
 const RATING_MAX = 5;
+const PLAYER_STATUSES: PlayerStatus[] = ["active", "pending", "inactive"];
 
 function validateRatings(ratings: [string, number][]): string | null {
   for (const [label, value] of ratings) {
@@ -199,10 +200,14 @@ export async function updateScouting(
   return { success: true };
 }
 
-export type QuickEditInput = ScoutingInput & { type: PlayerType };
+export type QuickEditInput = ScoutingInput & { type: PlayerType; status: PlayerStatus };
 
-/** The Jogadores list's inline row edit — type + the 5 scouting metrics,
- * without touching name/phone/email/birthday (those live on the ficha). */
+/** The Jogadores list's inline row edit — type, status, and the 5
+ * scouting metrics, without touching name/phone/email/birthday (those
+ * live on the ficha). `status` here overlaps with approvePlayer's
+ * narrower pending->active transition (still exposed on the ficha's
+ * "Aprovar Jogador" button) — both are valid ways to change it, this one
+ * just also allows active<->inactive and reverting to pending. */
 export async function updateQuickEdit(
   playerId: string,
   input: QuickEditInput,
@@ -212,6 +217,9 @@ export async function updateQuickEdit(
   }
   if (input.type !== "mensalista" && input.type !== "diarista") {
     return { success: false, message: "Tipo inválido." };
+  }
+  if (!PLAYER_STATUSES.includes(input.status)) {
+    return { success: false, message: "Status inválido." };
   }
 
   const validationError = validateRatings([
@@ -235,6 +243,7 @@ export async function updateQuickEdit(
     .from("players")
     .update({
       type: input.type,
+      status: input.status,
       def_rating: input.defRating,
       mid_rating: input.midRating,
       atk_rating: input.atkRating,
@@ -249,6 +258,7 @@ export async function updateQuickEdit(
 
   await logAction("update_player_quick_edit", "player", playerId, {
     type: input.type,
+    status: input.status,
     defRating: input.defRating,
     midRating: input.midRating,
     atkRating: input.atkRating,

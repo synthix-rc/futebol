@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { updateQuickEdit } from "@/app/actions/players";
-import type { PlayerType } from "@/types/supabase";
+import type { PlayerStatus, PlayerType } from "@/types/supabase";
 
 export type QuickEditablePlayer = {
   id: string;
   type: PlayerType | null;
+  status: PlayerStatus;
   defRating: number | null;
   midRating: number | null;
   atkRating: number | null;
@@ -22,6 +23,7 @@ export type QuickEditablePlayer = {
 export function useQuickEdit(player: QuickEditablePlayer) {
   const [isEditing, setIsEditing] = useState(false);
   const [type, setType] = useState<PlayerType>(player.type ?? "diarista");
+  const [status, setStatus] = useState<PlayerStatus>(player.status);
   const [defRating, setDefRating] = useState(player.defRating ?? 3);
   const [midRating, setMidRating] = useState(player.midRating ?? 3);
   const [atkRating, setAtkRating] = useState(player.atkRating ?? 3);
@@ -35,6 +37,7 @@ export function useQuickEdit(player: QuickEditablePlayer) {
     startTransition(async () => {
       const result = await updateQuickEdit(player.id, {
         type,
+        status,
         defRating,
         midRating,
         atkRating,
@@ -54,6 +57,8 @@ export function useQuickEdit(player: QuickEditablePlayer) {
     setIsEditing,
     type,
     setType,
+    status,
+    setStatus,
     defRating,
     setDefRating,
     midRating,

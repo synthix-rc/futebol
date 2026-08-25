@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { approvePlayer, updatePlayerProfile } from "@/app/actions/players";
 import type { PlayerStatus, PlayerType } from "@/types/supabase";
 import { PlayerAvatar } from "../PlayerAvatar";
+import { StatusBadge } from "../PlayerRowShared";
 import { CopyMagicLinkButton } from "./CopyMagicLinkButton";
 
 const MONTHS = [
@@ -199,20 +200,5 @@ export function PlayerHeader({ player }: { player: PlayerHeaderData }) {
         </form>
       )}
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: PlayerStatus }) {
-  if (status === "pending") {
-    return (
-      <span className="whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-        ⏳ Pendente
-      </span>
-    );
-  }
-  return (
-    <span className="whitespace-nowrap rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-      ✅ Ativo
-    </span>
   );
 }

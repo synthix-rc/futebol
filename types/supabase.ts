@@ -561,7 +561,7 @@ export type Database = {
       match_status: "in_progress" | "finished" | "canceled"
       payment_status: "pendente" | "pago"
       payment_type: "mensalidade" | "diaria"
-      player_status: "pending" | "active"
+      player_status: "pending" | "active" | "inactive"
       player_type: "mensalista" | "diarista"
       rsvp_status:
         | "pending_waitlist"
@@ -700,7 +700,7 @@ export const Constants = {
       match_status: ["in_progress", "finished", "canceled"],
       payment_status: ["pendente", "pago"],
       payment_type: ["mensalidade", "diaria"],
-      player_status: ["pending", "active"],
+      player_status: ["pending", "active", "inactive"],
       player_type: ["mensalista", "diarista"],
       rsvp_status: [
         "pending_waitlist",

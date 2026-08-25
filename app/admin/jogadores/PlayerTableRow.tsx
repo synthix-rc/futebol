@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { PlayerType } from "@/types/supabase";
+import type { PlayerStatus, PlayerType } from "@/types/supabase";
 import { PlayerAvatar } from "./PlayerAvatar";
-import { PendingBadge, RatingSelect, TypeBadge } from "./PlayerRowShared";
+import { RatingSelect, STATUS_OPTIONS, StatusBadge, TypeBadge } from "./PlayerRowShared";
 import { useQuickEdit } from "./useQuickEdit";
 import type { PlayerRow } from "./PlayersTable";
 
@@ -57,7 +57,23 @@ export function PlayerTableRow({ player }: { player: PlayerRow }) {
         )}
       </td>
       <td className="px-4 py-3 text-foreground/60">{player.finishedGames}</td>
-      <td className="px-4 py-3">{player.status === "pending" ? <PendingBadge /> : null}</td>
+      <td className="px-4 py-3">
+        {edit.isEditing ? (
+          <select
+            value={edit.status}
+            onChange={(event) => edit.setStatus(event.target.value as PlayerStatus)}
+            className="min-h-9 rounded-md border border-foreground/20 bg-background px-2 py-1 text-xs"
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <StatusBadge status={player.status} />
+        )}
+      </td>
       <td className="px-4 py-3">
         <div className="flex flex-col items-start gap-1">
           {edit.isEditing ? (

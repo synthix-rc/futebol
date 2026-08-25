@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { PlayerType } from "@/types/supabase";
+import type { PlayerStatus, PlayerType } from "@/types/supabase";
 import { PlayerAvatar } from "./PlayerAvatar";
-import { PendingBadge, RatingSelect, TypeBadge } from "./PlayerRowShared";
+import { RatingSelect, STATUS_OPTIONS, StatusBadge, TypeBadge } from "./PlayerRowShared";
 import { useQuickEdit } from "./useQuickEdit";
 import type { PlayerRow } from "./PlayersTable";
 
@@ -48,14 +48,27 @@ export function PlayerListCard({ player }: { player: PlayerRow }) {
 
       {edit.isEditing ? (
         <div className="flex flex-col gap-2">
-          <select
-            value={edit.type}
-            onChange={(event) => edit.setType(event.target.value as PlayerType)}
-            className="min-h-11 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
-          >
-            <option value="mensalista">Mensalista</option>
-            <option value="diarista">Diarista</option>
-          </select>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={edit.type}
+              onChange={(event) => edit.setType(event.target.value as PlayerType)}
+              className="min-h-11 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
+            >
+              <option value="mensalista">Mensalista</option>
+              <option value="diarista">Diarista</option>
+            </select>
+            <select
+              value={edit.status}
+              onChange={(event) => edit.setStatus(event.target.value as PlayerStatus)}
+              className="min-h-11 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex justify-between gap-1">
             <RatingSelect label="D" value={edit.defRating} onChange={edit.setDefRating} />
             <RatingSelect label="M" value={edit.midRating} onChange={edit.setMidRating} />
@@ -77,7 +90,7 @@ export function PlayerListCard({ player }: { player: PlayerRow }) {
         <span>
           {player.finishedGames} jogo{player.finishedGames === 1 ? "" : "s"}
         </span>
-        {player.status === "pending" && <PendingBadge />}
+        <StatusBadge status={player.status} />
       </div>
 
       {edit.error && <p className="text-xs text-red-500">{edit.error}</p>}
