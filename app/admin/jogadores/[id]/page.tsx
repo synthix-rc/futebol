@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { formatMonthLabel, monthKey } from "@/utils/dashboardMetrics";
+import { monthKey } from "@/utils/dashboardMetrics";
+import type { PaymentCategory } from "@/types/supabase";
 import { MensalidadeStatus } from "../MensalidadeStatus";
 import { PlayerHeader } from "./PlayerHeader";
 import { ScoutingForm } from "./ScoutingForm";
+import { PaymentHistoryList, type PaymentHistoryEntry } from "./PaymentHistoryList";
+import { PlayerDetailTabs } from "./PlayerDetailTabs";
 
 export default async function PlayerDetailPage({
   params,
@@ -52,6 +55,20 @@ export default async function PlayerDetailPage({
     if (data) mensalidadePayment = { amount: Number(data.amount) };
   }
 
+  const { data: paymentHistoryRows } = await supabase
+    .from("payments")
+    .select("id, amount, category, created_at")
+    .eq("player_id", id)
+    .eq("status", "pago")
+    .order("created_at", { ascending: false });
+
+  const paymentHistory: PaymentHistoryEntry[] = (paymentHistoryRows ?? []).map((payment) => ({
+    id: payment.id,
+    amount: Number(payment.amount),
+    category: payment.category as PaymentCategory,
+    paidAt: payment.created_at,
+  }));
+
   let finishedGames = 0;
   let totalGoals = 0;
   let totalAssists = 0;
@@ -71,56 +88,72 @@ export default async function PlayerDetailPage({
         </Link>
       </div>
 
-      <PlayerHeader
-        player={{
-          id: player.id,
-          name: player.name,
-          type: player.type,
-          status: player.status,
-          photoUrl: player.photo_url,
-          phone: player.phone,
-          email: player.email,
-          birthDay: player.birth_day,
-          birthMonth: player.birth_month,
-        }}
+      <PlayerDetailTabs
+        perfil={
+          <div className="flex flex-col gap-6">
+            <PlayerHeader
+              player={{
+                id: player.id,
+                name: player.name,
+                type: player.type,
+                status: player.status,
+                photoUrl: player.photo_url,
+                phone: player.phone,
+                email: player.email,
+                birthDay: player.birth_day,
+                birthMonth: player.birth_month,
+              }}
+            />
+
+            <ScoutingForm
+              playerId={player.id}
+              initial={{
+                defRating: player.def_rating ?? 3,
+                midRating: player.mid_rating ?? 3,
+                atkRating: player.atk_rating ?? 3,
+                speedRating: player.speed_rating ?? 3,
+                staminaRating: player.stamina_rating ?? 3,
+              }}
+            />
+
+            <section className="rounded-lg border border-foreground/10 bg-card p-6">
+              <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground/50">
+                📊 Estatísticas
+              </h2>
+              <div className="grid grid-cols-3 gap-4">
+                <Stat label="Jogos" value={finishedGames} />
+                <Stat label="Gols" value={totalGoals} />
+                <Stat label="Assistências" value={totalAssists} />
+              </div>
+            </section>
+          </div>
+        }
+        financeiro={
+          <section className="rounded-lg border border-foreground/10 bg-card p-6">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
+              💰 Financeiro
+            </h2>
+
+            {player.type === "mensalista" && (
+              <MensalidadeStatus
+                playerId={player.id}
+                referenceMonth={currentMonth}
+                paid={mensalidadePayment !== null}
+                amount={mensalidadePayment?.amount ?? null}
+              />
+            )}
+
+            <div
+              className={player.type === "mensalista" ? "mt-4 border-t border-foreground/10 pt-4" : ""}
+            >
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-foreground/40">
+                Histórico de Pagamentos
+              </h3>
+              <PaymentHistoryList payments={paymentHistory} />
+            </div>
+          </section>
+        }
       />
-
-      <ScoutingForm
-        playerId={player.id}
-        initial={{
-          defRating: player.def_rating ?? 3,
-          midRating: player.mid_rating ?? 3,
-          atkRating: player.atk_rating ?? 3,
-          speedRating: player.speed_rating ?? 3,
-          staminaRating: player.stamina_rating ?? 3,
-        }}
-      />
-
-      <section className="rounded-lg border border-foreground/10 bg-card p-6">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground/50">
-          📊 Estatísticas
-        </h2>
-        <div className="grid grid-cols-3 gap-4">
-          <Stat label="Jogos" value={finishedGames} />
-          <Stat label="Gols" value={totalGoals} />
-          <Stat label="Assistências" value={totalAssists} />
-        </div>
-      </section>
-
-      {player.type === "mensalista" && (
-        <section className="rounded-lg border border-foreground/10 bg-card p-6">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
-            💰 Financeiro
-          </h2>
-          <MensalidadeStatus
-            playerId={player.id}
-            referenceMonth={currentMonth}
-            monthLabel={formatMonthLabel(currentMonth)}
-            paid={mensalidadePayment !== null}
-            amount={mensalidadePayment?.amount ?? null}
-          />
-        </section>
-      )}
     </div>
   );
 }

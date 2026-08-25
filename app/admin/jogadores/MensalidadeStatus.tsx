@@ -2,12 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { registerPayment } from "@/app/actions/finance";
+import type { PaymentCategory } from "@/types/supabase";
 import { ReceiptUploadField } from "../ReceiptUploadField";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+
+const CATEGORY_OPTIONS: Array<{ value: PaymentCategory; label: string }> = [
+  { value: "campo", label: "⚽ Campo/Mensalidade" },
+  { value: "churrasco", label: "🥩 Churrasco" },
+];
 
 /**
  * Mensalidade mark-paid, scoped to one player — lives on the ficha
@@ -19,18 +25,17 @@ const currency = new Intl.NumberFormat("pt-BR", {
 export function MensalidadeStatus({
   playerId,
   referenceMonth,
-  monthLabel,
   paid,
   amount,
 }: {
   playerId: string;
   referenceMonth: string;
-  monthLabel: string;
   paid: boolean;
   amount: number | null;
 }) {
   const [isPaid, setIsPaid] = useState(paid);
   const [paidAmount, setPaidAmount] = useState(amount);
+  const [category, setCategory] = useState<PaymentCategory>("campo");
   const [amountInput, setAmountInput] = useState<string>(amount != null ? String(amount) : "");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -49,6 +54,7 @@ export function MensalidadeStatus({
         type: "mensalidade",
         referenceMonth,
         receiptUrl,
+        category,
       });
       if (!result.success) {
         setError(result.message ?? "Erro ao registrar pagamento.");
@@ -61,14 +67,27 @@ export function MensalidadeStatus({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-foreground/50">Mensalidade — {monthLabel}</p>
-
       {isPaid ? (
         <span className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
           ✅ Pago{paidAmount != null ? ` — ${currency.format(paidAmount)}` : ""}
         </span>
       ) : (
         <div className="flex flex-col gap-2">
+          <label className="flex flex-col gap-1 text-xs text-foreground/60">
+            Categoria
+            <select
+              value={category}
+              onChange={(event) => setCategory(event.target.value as PaymentCategory)}
+              required
+              className="min-h-11 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm"
+            >
+              {CATEGORY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <input
             type="number"
             min={0}

@@ -3,28 +3,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { VOTING_WINDOW_MS } from "@/utils/sessions";
-import type { PaymentCategory, PaymentStatus, PaymentType } from "@/types/supabase";
+import type { PaymentCategory } from "@/types/supabase";
 import { PlayerAvatar } from "@/app/admin/jogadores/PlayerAvatar";
+import {
+  PaymentHistoryList,
+  type PaymentHistoryEntry,
+} from "@/app/admin/jogadores/[id]/PaymentHistoryList";
 import { VotingCard, type VoteCandidate } from "./VotingCard";
+import { PlayerProfileTabs } from "./PlayerProfileTabs";
 
 // See types/supabase.ts for why this isn't `SupabaseClient<Database>`.
 type TypedClient = SupabaseClient;
-
-const currency = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const MONTH_LABELS: Record<string, string> = {
-  "01": "Jan", "02": "Fev", "03": "Mar", "04": "Abr", "05": "Mai", "06": "Jun",
-  "07": "Jul", "08": "Ago", "09": "Set", "10": "Out", "11": "Nov", "12": "Dez",
-};
-
-function formatReferenceMonth(referenceMonth: string): string {
-  const [year, month] = referenceMonth.split("-");
-  const label = MONTH_LABELS[month] ?? month;
-  return `${label}/${year}`;
-}
 
 /**
  * Portal do Jogador — public, read-only (no admin auth: proxy.ts's matcher
@@ -68,22 +57,27 @@ export default async function PlayerProfilePage({
       >(),
     supabase
       .from("payments")
-      .select("id, amount, type, category, status, reference_month, created_at")
+      .select("id, amount, category, created_at")
       .eq("player_id", id)
-      .order("reference_month", { ascending: false })
+      .eq("status", "pago")
+      .order("created_at", { ascending: false })
       .overrideTypes<
         Array<{
           id: string;
           amount: number;
-          type: PaymentType;
           category: PaymentCategory;
-          status: PaymentStatus;
-          reference_month: string;
           created_at: string;
         }>,
         { merge: false }
       >(),
   ]);
+
+  const paymentHistory: PaymentHistoryEntry[] = (payments ?? []).map((payment) => ({
+    id: payment.id,
+    amount: Number(payment.amount),
+    category: payment.category,
+    paidAt: payment.created_at,
+  }));
 
   let finishedGames = 0;
   let totalGoals = 0;
@@ -101,59 +95,40 @@ export default async function PlayerProfilePage({
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-10">
       {votingSection}
 
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-foreground/10 bg-card p-6 text-center">
-        <PlayerAvatar photoUrl={player.photo_url} name={player.name} size="lg" />
-        <div>
-          <h1 className="text-xl font-bold">{player.name}</h1>
-          <p className="text-sm text-foreground/60">
-            {player.type === "mensalista" ? "Mensalista" : "Diarista"}
-          </p>
-        </div>
-      </div>
+      <PlayerProfileTabs
+        desempenho={
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-foreground/10 bg-card p-6 text-center">
+              <PlayerAvatar photoUrl={player.photo_url} name={player.name} size="lg" />
+              <div>
+                <h1 className="text-xl font-bold">{player.name}</h1>
+                <p className="text-sm text-foreground/60">
+                  {player.type === "mensalista" ? "Mensalista" : "Diarista"}
+                </p>
+              </div>
+            </div>
 
-      <section className="rounded-lg border border-foreground/10 bg-card p-6">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground/50">
-          📊 Estatísticas
-        </h2>
-        <div className="grid grid-cols-3 gap-4">
-          <Stat label="Jogos" value={finishedGames} />
-          <Stat label="Gols" value={totalGoals} />
-          <Stat label="Assistências" value={totalAssists} />
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-foreground/10 bg-card p-6">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
-          💰 Extrato Financeiro
-        </h2>
-        {payments && payments.length > 0 ? (
-          <ul className="flex flex-col gap-2">
-            {payments.map((payment) => (
-              <li
-                key={payment.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-foreground/10 px-3 py-2 text-sm"
-              >
-                <div className="flex flex-col">
-                  <span className="font-medium">
-                    {payment.type === "mensalidade" ? "Mensalidade" : "Diária"}
-                    {" · "}
-                    {payment.category === "churrasco" ? "Churrasco 🥩" : "Campo ⚽"}
-                  </span>
-                  <span className="text-xs text-foreground/50">
-                    {formatReferenceMonth(payment.reference_month)}
-                  </span>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="font-mono">{currency.format(Number(payment.amount))}</span>
-                  <PaymentStatusBadge status={payment.status} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-foreground/40">Nenhum lançamento por aqui ainda.</p>
-        )}
-      </section>
+            <section className="rounded-lg border border-foreground/10 bg-card p-6">
+              <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground/50">
+                📊 Estatísticas
+              </h2>
+              <div className="grid grid-cols-3 gap-4">
+                <Stat label="Jogos" value={finishedGames} />
+                <Stat label="Gols" value={totalGoals} />
+                <Stat label="Assistências" value={totalAssists} />
+              </div>
+            </section>
+          </div>
+        }
+        financeiro={
+          <section className="rounded-lg border border-foreground/10 bg-card p-6">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/50">
+              💰 Meu Histórico Financeiro
+            </h2>
+            <PaymentHistoryList payments={paymentHistory} />
+          </section>
+        }
+      />
     </div>
   );
 }
@@ -164,21 +139,6 @@ function Stat({ label, value }: { label: string; value: number }) {
       <span className="text-2xl font-bold">{value}</span>
       <span className="text-[10px] uppercase tracking-wide text-foreground/40">{label}</span>
     </div>
-  );
-}
-
-function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
-  if (status === "pago") {
-    return (
-      <span className="whitespace-nowrap rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-        ✅ Pago
-      </span>
-    );
-  }
-  return (
-    <span className="whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-      ⏳ Pendente
-    </span>
   );
 }
 
