@@ -3,6 +3,8 @@ import {
   getInProgressSession,
   getOpenForRsvpSession,
   getRecentSessions,
+  nextSundayISODate,
+  todayInBrazilISODate,
 } from "@/utils/sessions";
 import type { SessionStatus } from "@/types/supabase";
 import { CopyLinkButton } from "./CopyLinkButton";
@@ -30,7 +32,11 @@ export default async function GerarLinkPage() {
       </div>
 
       <section className="flex flex-col items-center gap-3 rounded-lg border border-foreground/10 bg-card p-6 text-center">
-        <GenerateSessionButton disabled={hasOpenOrActive} />
+        <GenerateSessionButton
+          disabled={hasOpenOrActive}
+          defaultDate={nextSundayISODate()}
+          minDate={todayInBrazilISODate()}
+        />
         {hasOpenOrActive && (
           <p className="text-xs text-foreground/50">
             Já existe uma sessão aberta ou em andamento — encerre-a antes de
