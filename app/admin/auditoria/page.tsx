@@ -33,8 +33,12 @@ type LogRow = {
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
-  const dateLabel = date.toLocaleDateString("pt-BR");
-  const timeLabel = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const dateLabel = date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const timeLabel = date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
   return `${dateLabel} às ${timeLabel}`;
 }
 

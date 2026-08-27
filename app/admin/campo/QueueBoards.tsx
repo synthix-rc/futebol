@@ -81,7 +81,9 @@ function QuadroCard({
           >
             <span>{entry.player.name}</span>
             <span className="font-mono text-[10px] text-foreground/40">
-              {new Date(entry.checkInTimestamp).toLocaleTimeString("pt-BR")}
+              {new Date(entry.checkInTimestamp).toLocaleTimeString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+              })}
             </span>
           </li>
         ))}

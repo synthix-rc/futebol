@@ -87,7 +87,9 @@ export function IncompleteQuadroCard({
             </span>
             <span className="font-mono text-[10px] text-foreground/40">
               {entry.checkInTimestamp
-                ? new Date(entry.checkInTimestamp).toLocaleTimeString("pt-BR")
+                ? new Date(entry.checkInTimestamp).toLocaleTimeString("pt-BR", {
+                    timeZone: "America/Sao_Paulo",
+                  })
                 : "sugerido"}
             </span>
           </li>

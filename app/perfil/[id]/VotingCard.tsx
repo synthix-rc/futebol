@@ -47,17 +47,26 @@ export function VotingCard({
     insuportavel: null,
     pereba: null,
   });
-  const [remainingMs, setRemainingMs] = useState(() => closesAt - Date.now());
+  // Starts `null`, not `closesAt - Date.now()` — that expression reads the
+  // wall clock at render time, which differs between the server's render
+  // and the client's hydration pass (a few hundred ms to a couple seconds
+  // apart) and feeds straight into visible text ("Encerra em..."),
+  // producing a hydration mismatch. Staying `null` until an effect (which
+  // never runs during SSR) sets the real value keeps the first client
+  // render identical to the server's.
+  const [remainingMs, setRemainingMs] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => setRemainingMs(closesAt - Date.now()), 30_000);
+    const update = () => setRemainingMs(closesAt - Date.now());
+    update();
+    const interval = setInterval(update, 30_000);
     return () => clearInterval(interval);
   }, [closesAt]);
 
-  const expired = remainingMs <= 0;
+  const expired = remainingMs !== null && remainingMs <= 0;
   const allPicked = picks.craque && picks.insuportavel && picks.pereba;
 
   function handlePick(category: CategoryKey, playerId: string) {
@@ -110,7 +119,7 @@ export function VotingCard({
       <div className="flex flex-col items-center gap-1 text-center">
         <h2 className="text-lg font-bold">🗳️ Urna da Rodada Aberta!</h2>
         <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-          Encerra em {formatRemaining(remainingMs)}
+          {remainingMs === null ? "Calculando prazo…" : `Encerra em ${formatRemaining(remainingMs)}`}
         </p>
       </div>
 
