@@ -6,12 +6,11 @@ import {
   createMatch,
   getQueue,
   requeuePlayers,
-  toRoster,
 } from "@/utils/queue";
 import { getSessionById } from "@/utils/sessions";
 import { requireUser } from "@/utils/auth";
 import { logAction } from "@/utils/audit";
-import type { PlayerType, WinnerTeam } from "@/types/supabase";
+import type { MatchTeam, PlayerType, WinnerTeam } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
 
@@ -55,9 +54,13 @@ export async function checkInPlayer(presenceId: string): Promise<ActionResult> {
 const TEAM_SIZE = 6;
 
 /**
- * Kicks off the session with a match assembled by the admin's "Modo Deus"
- * draft board (app/admin/campo/DraftBoard.tsx): 6 vs 6, manually rebalanced from
- * the FIFO queue rather than auto-sliced by arrival order.
+ * Starts a match assembled by the admin's "Modo Deus" draft board
+ * (app/admin/campo/DraftBoard.tsx): 6 vs 6, manually rebalanced from the
+ * FIFO queue rather than auto-sliced by arrival order. Despite the name,
+ * this isn't only for the session's first match — `finishMatch` no longer
+ * auto-starts a follow-up, so the field goes idle after every result and
+ * the admin drives every single match (first or not) through this same
+ * action from the DraftBoard shown whenever there's no `in_progress` match.
  *
  * FIFO still governs *who* is eligible to play — every id is re-checked
  * against the live queue below — the admin only controls which side (A/B)
@@ -154,14 +157,24 @@ export type MatchPlayerStat = {
 
 /**
  * Finalizes the match in progress and rotates players through the queue:
- * - A/B win: the losing team goes to the back of the queue; the winning
- *   team stays on the field and is paired with the next 6 challengers.
- * - Draw: both teams go to the back of the queue, and a new match is
- *   assembled from the next 12 players in line.
+ * - A/B win: the losing team goes to the back of the queue.
+ * - Draw: recorded as a genuine draw in `winner_team` (stats/history never
+ *   lie about the result), but `tiebreakWinner` — the sorteio the admin
+ *   runs to break the tie, mandatory for a draw — is stored separately in
+ *   `tiebreak_winner_team` and used as the *effective* winner below, purely
+ *   for rotation purposes.
  *
- * A follow-up match is only created when enough challengers are already
- * queued — otherwise the field just goes idle until the admin starts the
- * next match manually (there is always at least a winning team waiting).
+ * Deliberately does NOT start the next match. It used to — auto-creating a
+ * follow-up match the moment enough challengers were queued — but that made
+ * the field self-perpetuate an `in_progress` match every Sunday for as long
+ * as 6+ people kept waiting, and `closeSession` refuses to close a session
+ * with any `in_progress` match on it. The admin could win/draw their way
+ * through the whole roster and never be able to click "Encerrar Sessão".
+ * Finishing a match now always returns the field to idle: the queue is
+ * rotated and the result is recorded, then it's up to the admin to look at
+ * the current queue (Campo/page.tsx renders DraftBoard whenever there's no
+ * active match) and either start the next match themselves
+ * (`startFirstMatch`) or close the session for the day.
  *
  * `playerStats` is the "Súmula" tally (goals/assists per participant)
  * collected by the admin before confirming the result — written to each
@@ -173,9 +186,17 @@ export async function finishMatch(
   matchId: string,
   result: WinnerTeam,
   playerStats: MatchPlayerStat[] = [],
+  tiebreakWinner?: MatchTeam,
 ): Promise<ActionResult> {
   if (!matchId) {
     return { success: false, message: "Partida inválida." };
+  }
+
+  if (result === "draw" && tiebreakWinner !== "team_a" && tiebreakWinner !== "team_b") {
+    return {
+      success: false,
+      message: "Escolha o vencedor no sorteio para registrar o empate.",
+    };
   }
 
   const supabase = await createClient();
@@ -234,48 +255,32 @@ export async function finishMatch(
 
     const { error: closeError } = await supabase
       .from("matches")
-      .update({ status: "finished", winner_team: result })
+      .update({
+        status: "finished",
+        winner_team: result,
+        finished_at: new Date().toISOString(),
+        tiebreak_winner_team: result === "draw" ? tiebreakWinner : null,
+      })
       .eq("id", matchId);
 
     if (closeError) {
       throw new Error("Erro ao encerrar a partida.");
     }
 
+    // The team that actually rotates as "winner" — resolved through the
+    // sorteio for a draw, direct otherwise. Always resolvable at this point
+    // since a draw without `tiebreakWinner` was already rejected above.
+    const effectiveWinner = result === "draw" ? tiebreakWinner : result;
+    const loserIds = effectiveWinner === "team_a" ? teamBIds : teamAIds;
+
     const now = new Date().toISOString();
+    await requeuePlayers(supabase, match.session_id, loserIds, now);
 
-    if (result === "draw") {
-      await requeuePlayers(supabase, match.session_id, [...teamAIds, ...teamBIds], now);
-
-      const queue = await getQueue(supabase, match.session_id);
-      if (queue.length >= 12) {
-        await createMatch(
-          supabase,
-          match.session_id,
-          toRoster(queue.slice(0, 6).map((entry) => entry.playerId)),
-          toRoster(queue.slice(6, 12).map((entry) => entry.playerId)),
-        );
-      }
-    } else {
-      const winningIds = result === "team_a" ? teamAIds : teamBIds;
-      const losingIds = result === "team_a" ? teamBIds : teamAIds;
-
-      await requeuePlayers(supabase, match.session_id, losingIds, now);
-
-      const winningSet = new Set(winningIds);
-      const queue = (await getQueue(supabase, match.session_id)).filter(
-        (entry) => !winningSet.has(entry.playerId),
-      );
-
-      if (queue.length >= 6) {
-        const challengers = queue.slice(0, 6).map((entry) => entry.playerId);
-        await createMatch(
-          supabase,
-          match.session_id,
-          toRoster(winningIds),
-          toRoster(challengers),
-        );
-      }
-    }
+    await logAction("finish_match", "match", matchId, {
+      result,
+      tiebreakWinner: result === "draw" ? tiebreakWinner : undefined,
+      playerStats: playerStats.filter((s) => s.goals > 0 || s.assists > 0),
+    });
   } catch (err) {
     console.error("ERRO SUPABASE FINALIZAR PARTIDA:", err);
     return {
@@ -284,11 +289,6 @@ export async function finishMatch(
         err instanceof Error ? err.message : "Erro ao processar o resultado da partida.",
     };
   }
-
-  await logAction("finish_match", "match", matchId, {
-    result,
-    playerStats: playerStats.filter((s) => s.goals > 0 || s.assists > 0),
-  });
 
   revalidatePath("/admin/campo");
   return { success: true };

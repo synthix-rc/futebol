@@ -198,6 +198,7 @@ export type Database = {
           status: Database["public"]["Enums"]["match_status"] | null
           team_a_name: string | null
           team_b_name: string | null
+          tiebreak_winner_team: string | null
           winner_team: string | null
         }
         Insert: {
@@ -208,6 +209,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["match_status"] | null
           team_a_name?: string | null
           team_b_name?: string | null
+          tiebreak_winner_team?: string | null
           winner_team?: string | null
         }
         Update: {
@@ -218,6 +220,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["match_status"] | null
           team_a_name?: string | null
           team_b_name?: string | null
+          tiebreak_winner_team?: string | null
           winner_team?: string | null
         }
         Relationships: [
@@ -744,3 +747,6 @@ export type ExpenseCategory = Enums<"expense_category">;
 export type MatchTeam = "team_a" | "team_b";
 export type WinnerTeam = "team_a" | "team_b" | "draw";
 export type PaymentCategory = "campo" | "churrasco";
+// `tiebreak_winner_team` (matches) — only set when winner_team = 'draw';
+// the sorteio winner used by the rotation engine as the effective winner.
+export type TiebreakWinnerTeam = MatchTeam | null;

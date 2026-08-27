@@ -32,8 +32,17 @@ export function SumulaModal({
   const [stats, setStats] = useState<StatState>(() =>
     Object.fromEntries(roster.map((entry) => [entry.playerId, { goals: 0, assists: 0 }])),
   );
+  // Only meaningful when result === "draw": which team wins the sorteio and
+  // becomes the "effective winner" for rotation purposes (see finishMatch),
+  // even though the match itself stays recorded as a draw. Mandatory for a
+  // draw — finishMatch rejects one without it — so this starts unset rather
+  // than defaulting to a team, forcing an explicit pick.
+  const [tiebreakWinner, setTiebreakWinner] = useState<MatchTeam | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  const isDraw = result === "draw";
+  const canSave = !isDraw || tiebreakWinner !== null;
 
   function bump(playerId: string, field: "goals" | "assists", delta: number) {
     setStats((prev) => {
@@ -44,6 +53,7 @@ export function SumulaModal({
   }
 
   function handleSave() {
+    if (!canSave) return;
     setError(null);
     startTransition(async () => {
       const playerStats: MatchPlayerStat[] = roster.map((entry) => ({
@@ -52,7 +62,12 @@ export function SumulaModal({
         assists: stats[entry.playerId]?.assists ?? 0,
       }));
 
-      const outcome = await finishMatch(matchId, result, playerStats);
+      const outcome = await finishMatch(
+        matchId,
+        result,
+        playerStats,
+        isDraw ? (tiebreakWinner ?? undefined) : undefined,
+      );
       if (!outcome.success) {
         setError(outcome.message ?? "Erro ao salvar a súmula.");
         return;
@@ -83,6 +98,44 @@ export function SumulaModal({
           preferir não registrar.
         </p>
 
+        {isDraw && (
+          <div className="flex flex-col gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+              🎲 Vencedor no Sorteio
+            </p>
+            <p className="text-[11px] text-foreground/50">
+              O empate continua valendo nas estatísticas — isso só decide quem fica em
+              campo na próxima partida.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTiebreakWinner("team_a")}
+                aria-pressed={tiebreakWinner === "team_a"}
+                className={`min-h-9 flex-1 rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  tiebreakWinner === "team_a"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-foreground/20 hover:bg-foreground/5"
+                }`}
+              >
+                Time A
+              </button>
+              <button
+                type="button"
+                onClick={() => setTiebreakWinner("team_b")}
+                aria-pressed={tiebreakWinner === "team_b"}
+                className={`min-h-9 flex-1 rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  tiebreakWinner === "team_b"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-foreground/20 hover:bg-foreground/5"
+                }`}
+              >
+                Time B
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-4 overflow-y-auto">
           <TeamStatList entries={teamAEntries} stats={stats} bump={bump} />
           <TeamStatList entries={teamBEntries} stats={stats} bump={bump} />
@@ -93,11 +146,15 @@ export function SumulaModal({
         <div className="flex gap-2">
           <button
             type="button"
-            disabled={isPending}
+            disabled={isPending || !canSave}
             onClick={handleSave}
             className="min-h-11 flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {isPending ? "Salvando…" : "Salvar Súmula e Rolar Fila"}
+            {isPending
+              ? "Salvando…"
+              : isDraw && !canSave
+                ? "Escolha o vencedor do sorteio"
+                : "Salvar Súmula e Rolar Fila"}
           </button>
           <button
             type="button"

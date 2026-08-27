@@ -121,7 +121,15 @@ export default async function CampoPage() {
         ) : (
           <div className="flex flex-col gap-4 py-2">
             <p className="text-center text-sm text-foreground/50">
-              Nenhuma partida em andamento. Monte os times abaixo.
+              Nenhuma partida em andamento. Monte os times abaixo com quem
+              está na fila, ou{" "}
+              <Link
+                href="/admin/gerar-link"
+                className="underline underline-offset-4"
+              >
+                encerre a sessão
+              </Link>{" "}
+              se o dia acabou.
             </p>
             <DraftBoard
               sessionId={sessionId}
