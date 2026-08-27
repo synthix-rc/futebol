@@ -59,11 +59,13 @@ export function sumRatings(players: QueuePlayer[]) {
  * no bearing on match rotation; a player without a `check_in_timestamp`
  * hasn't checked in yet and is excluded from the queue/draw entirely.
  *
- * Rotation (see `requeuePlayers`) appends a *new* `session_presences` row
- * each time a player is sent to the back of the line instead of mutating the
- * old one, so a player can have several `checked_in_field` rows in the same
- * session. Only the most recent one reflects their real place in line, so
- * rows are de-duplicated by player before sorting.
+ * `session_presences` has a real UNIQUE(session_id, player_id) constraint —
+ * a player has exactly one row per session, created once by `rsvp.ts`
+ * (which explicitly rejects a second RSVP for the same session/player) and
+ * mutated from then on. Rotation (see `requeuePlayers`) sends a player to
+ * the back of the line by *upserting* onto that same row's
+ * `check_in_timestamp`, never by inserting a second one — the de-dupe below
+ * is just cheap insurance for that invariant, not a real multi-row case.
  */
 export async function getQueue(
   supabase: TypedClient,
@@ -169,8 +171,19 @@ export async function getQueue(
 }
 
 /**
- * Sends players to the back of the queue by inserting fresh
- * `session_presences` rows stamped with `timestamp`.
+ * Sends players to the back of the queue by stamping a fresh
+ * `check_in_timestamp` on `timestamp`.
+ *
+ * This MUST be an upsert, not a plain insert: `session_presences` has a
+ * live UNIQUE(session_id, player_id) constraint, and every player passed
+ * here already has a row from their original check-in (`checkInPlayer`) or
+ * RSVP (`rsvp.ts`). A plain `.insert()` therefore always violates that
+ * constraint and throws `23505` on the very first requeue of any match —
+ * win/loss and draw alike, since both paths call this with the players
+ * being sent back. `onConflict` targets that same constraint so this
+ * updates the player's one existing row in place instead of trying (and
+ * failing) to add a second one. `games_played_today` and `rsvp_timestamp`
+ * aren't in `rows`, so upserting leaves them untouched.
  */
 export async function requeuePlayers(
   supabase: TypedClient,
@@ -187,7 +200,9 @@ export async function requeuePlayers(
     check_in_timestamp: timestamp,
   }));
 
-  const { error } = await supabase.from("session_presences").insert(rows);
+  const { error } = await supabase
+    .from("session_presences")
+    .upsert(rows, { onConflict: "session_id,player_id" });
   if (error) {
     throw new Error("Erro ao devolver jogadores para a fila.");
   }
@@ -328,8 +343,10 @@ export async function getGamesPlayedToday(
 /**
  * Marks `playerIds` as having played one more match today: reads each
  * player's current effective count (see `getGamesPlayedToday`) and writes
- * count+1 onto their most recent `session_presences` row, so future reads
- * pick it up regardless of how many rotation rows they've accumulated.
+ * count+1 onto their `session_presences` row. `session_presences` is one
+ * row per (session, player) by constraint (see `getQueue`), so "most
+ * recent row" is really just "the row" — this stays defensive rather than
+ * assuming that, in case it's ever queried before the player's row exists.
  */
 async function incrementGamesPlayed(
   supabase: TypedClient,
