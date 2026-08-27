@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import {
   createMatch,
-  getGamesPlayedToday,
   getQueue,
   requeuePlayers,
   toRoster,
@@ -360,17 +359,11 @@ export async function getSuggestedFillers(
       return { success: true, players: [] };
     }
 
-    const gamesByPlayer = await getGamesPlayedToday(
-      supabase,
-      sessionId,
-      pool.map((entry) => entry.playerId),
-    );
-
     const candidates: SuggestedFiller[] = pool.map((entry) => ({
       id: entry.playerId,
       name: entry.player.name,
       type: entry.player.type,
-      gamesPlayedToday: gamesByPlayer.get(entry.playerId) ?? 0,
+      gamesPlayedToday: entry.gamesPlayedToday,
       defRating: entry.player.defRating,
       midRating: entry.player.midRating,
       atkRating: entry.player.atkRating,

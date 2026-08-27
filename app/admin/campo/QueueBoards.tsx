@@ -1,4 +1,5 @@
 import { sumRatings, type QueueEntry } from "@/utils/queue";
+import { GamesPlayedBadge } from "./GamesPlayedBadge";
 import { IncompleteQuadroCard } from "./IncompleteQuadroCard";
 
 const QUADRO_SIZE = 6;
@@ -80,10 +81,13 @@ function QuadroCard({
             className="flex items-center justify-between gap-2"
           >
             <span>{entry.player.name}</span>
-            <span className="font-mono text-[10px] text-foreground/40">
-              {new Date(entry.checkInTimestamp).toLocaleTimeString("pt-BR", {
-                timeZone: "America/Sao_Paulo",
-              })}
+            <span className="flex items-center gap-1.5">
+              <GamesPlayedBadge count={entry.gamesPlayedToday} />
+              <span className="font-mono text-[10px] text-foreground/40">
+                {new Date(entry.checkInTimestamp).toLocaleTimeString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                })}
+              </span>
             </span>
           </li>
         ))}

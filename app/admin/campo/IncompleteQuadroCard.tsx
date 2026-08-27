@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { sumRatings, type QueueEntry, type QueuePlayer } from "@/utils/queue";
 import type { SuggestedFiller } from "@/app/actions/match";
+import { GamesPlayedBadge } from "./GamesPlayedBadge";
 import { SuggestedFillersPanel } from "./SuggestedFillersPanel";
 
 const QUADRO_SIZE = 6;
@@ -32,6 +33,7 @@ export function IncompleteQuadroCard({
     player: QueuePlayer;
     isFiller: boolean;
     checkInTimestamp: string | null;
+    gamesPlayedToday: number;
   }[] = [
     ...players.map((entry) => ({
       id: entry.presenceId,
@@ -39,6 +41,7 @@ export function IncompleteQuadroCard({
       player: entry.player,
       isFiller: false,
       checkInTimestamp: entry.checkInTimestamp,
+      gamesPlayedToday: entry.gamesPlayedToday,
     })),
     ...fillers.map((filler) => ({
       id: filler.id,
@@ -46,6 +49,7 @@ export function IncompleteQuadroCard({
       player: filler,
       isFiller: true,
       checkInTimestamp: null,
+      gamesPlayedToday: filler.gamesPlayedToday,
     })),
   ];
 
@@ -85,12 +89,15 @@ export function IncompleteQuadroCard({
                 </span>
               )}
             </span>
-            <span className="font-mono text-[10px] text-foreground/40">
-              {entry.checkInTimestamp
-                ? new Date(entry.checkInTimestamp).toLocaleTimeString("pt-BR", {
-                    timeZone: "America/Sao_Paulo",
-                  })
-                : "sugerido"}
+            <span className="flex items-center gap-1.5">
+              <GamesPlayedBadge count={entry.gamesPlayedToday} />
+              <span className="font-mono text-[10px] text-foreground/40">
+                {entry.checkInTimestamp
+                  ? new Date(entry.checkInTimestamp).toLocaleTimeString("pt-BR", {
+                      timeZone: "America/Sao_Paulo",
+                    })
+                  : "sugerido"}
+              </span>
             </span>
           </li>
         ))}

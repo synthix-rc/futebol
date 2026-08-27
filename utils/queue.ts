@@ -19,8 +19,19 @@ export type QueueEntry = {
   presenceId: string;
   playerId: string;
   checkInTimestamp: string;
+  /** Matches played today *in this session* — the primary FIFO sort key
+   * (see `getQueue`) and also what the tapa-buraco ranking and the "⚽ N"
+   * badge in the queue boards key off. */
+  gamesPlayedToday: number;
   player: QueuePlayer;
 };
+
+/** Mensalista before diarista — the tie-break category used by both
+ * `getQueue`'s ordering and the tapa-buraco ranking in
+ * app/actions/match.ts. */
+function typePriority(type: PlayerType): number {
+  return type === "mensalista" ? 0 : 1;
+}
 
 /** One player's spot on a roster being sent to `createMatch`. */
 export type RosterEntry = {
@@ -35,7 +46,7 @@ export function toRoster(playerIds: string[]): RosterEntry[] {
 }
 
 /** Summed across all 5 scouting metrics — "força" of a quadro/team is the
- * total of Defesa, Meio, Ataque, Velocidade and Resistência. */
+ * total of Defesa, Meio, Ataque, Velocidade e Resistência. */
 export function sumRatings(players: QueuePlayer[]) {
   return players.reduce(
     (totals, player) => ({
@@ -66,6 +77,14 @@ export function sumRatings(players: QueuePlayer[]) {
  * the back of the line by *upserting* onto that same row's
  * `check_in_timestamp`, never by inserting a second one — the de-dupe below
  * is just cheap insurance for that invariant, not a real multi-row case.
+ *
+ * Sort order (strict hierarchy — each level only breaks ties left by the
+ * one before it):
+ *   1. `games_played_today` ascending — whoever has played least today.
+ *   2. Category — mensalista before diarista.
+ *   3. `check_in_timestamp` ascending — whoever arrived first.
+ * This is the priority ranking used everywhere someone needs "who should
+ * play next": the queue boards and the tapa-buraco suggestions.
  */
 export async function getQueue(
   supabase: TypedClient,
@@ -74,17 +93,17 @@ export async function getQueue(
   const { data: presences, error: presencesError } = await supabase
     .from("session_presences")
     .select(
-      "id, player_id, check_in_timestamp, players(id, name, type, def_rating, mid_rating, atk_rating, speed_rating, stamina_rating)",
+      "id, player_id, check_in_timestamp, games_played_today, players(id, name, type, def_rating, mid_rating, atk_rating, speed_rating, stamina_rating)",
     )
     .eq("session_id", sessionId)
     .eq("status", "checked_in_field")
     .not("check_in_timestamp", "is", null)
-    .order("check_in_timestamp", { ascending: true })
     .overrideTypes<
       Array<{
         id: string;
         player_id: string;
         check_in_timestamp: string | null;
+        games_played_today: number | null;
         players: {
           id: string;
           name: string;
@@ -150,13 +169,20 @@ export async function getQueue(
 
   return Array.from(latestByPlayer.values())
     .filter((presence) => !playingPlayerIds.has(presence.player_id))
-    .sort((a, b) =>
-      (a.check_in_timestamp ?? "").localeCompare(b.check_in_timestamp ?? ""),
-    )
+    .sort((a, b) => {
+      const gamesDiff = (a.games_played_today ?? 0) - (b.games_played_today ?? 0);
+      if (gamesDiff !== 0) return gamesDiff;
+
+      const typeDiff = typePriority(a.players!.type) - typePriority(b.players!.type);
+      if (typeDiff !== 0) return typeDiff;
+
+      return (a.check_in_timestamp ?? "").localeCompare(b.check_in_timestamp ?? "");
+    })
     .map((presence) => ({
       presenceId: presence.id,
       playerId: presence.player_id,
       checkInTimestamp: presence.check_in_timestamp as string,
+      gamesPlayedToday: presence.games_played_today ?? 0,
       player: {
         id: presence.players!.id,
         name: presence.players!.name,
@@ -298,55 +324,12 @@ export async function createMatch(
 }
 
 /**
- * Effective `games_played_today` for each player in *this session only*:
- * the max value across their `session_presences` rows for `sessionId`.
- * Rotation (`requeuePlayers`) inserts a fresh row each time a player is
- * sent back to the queue, so the true up-to-date count isn't always on the
- * most recent row.
- *
- * This is the ONLY signal the tapa-buraco fill-in rule
- * (getSuggestedFillers, app/actions/match.ts) is allowed to rank on for
- * "who's played least" — a player's all-time match history (shown on
- * their ficha in app/admin/jogadores, derived independently from
- * match_participations across every session) must never leak into this
- * query. Since session_presences rows belong to one session by
- * construction, that separation holds structurally, not just by
- * convention — but if this ever needs a cross-session read, don't.
- */
-export async function getGamesPlayedToday(
-  supabase: TypedClient,
-  sessionId: string,
-  playerIds: string[],
-): Promise<Map<string, number>> {
-  const result = new Map<string, number>();
-  if (playerIds.length === 0) return result;
-
-  const { data, error } = await supabase
-    .from("session_presences")
-    .select("player_id, games_played_today")
-    .eq("session_id", sessionId)
-    .in("player_id", playerIds);
-
-  if (error) {
-    throw new Error("Erro ao carregar partidas jogadas hoje.");
-  }
-
-  for (const row of data ?? []) {
-    const games = row.games_played_today ?? 0;
-    const current = result.get(row.player_id) ?? 0;
-    if (games > current) result.set(row.player_id, games);
-  }
-
-  return result;
-}
-
-/**
  * Marks `playerIds` as having played one more match today: reads each
- * player's current effective count (see `getGamesPlayedToday`) and writes
- * count+1 onto their `session_presences` row. `session_presences` is one
- * row per (session, player) by constraint (see `getQueue`), so "most
- * recent row" is really just "the row" — this stays defensive rather than
- * assuming that, in case it's ever queried before the player's row exists.
+ * player's current count and writes count+1 onto their `session_presences`
+ * row. `session_presences` is one row per (session, player) by constraint
+ * (see `getQueue`), so "most recent row" is really just "the row" — this
+ * stays defensive rather than assuming that, in case it's ever queried
+ * before the player's row exists.
  */
 async function incrementGamesPlayed(
   supabase: TypedClient,
