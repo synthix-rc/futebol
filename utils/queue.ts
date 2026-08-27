@@ -83,8 +83,14 @@ export function sumRatings(players: QueuePlayer[]) {
  *   1. `games_played_today` ascending — whoever has played least today.
  *   2. Category — mensalista before diarista.
  *   3. `check_in_timestamp` ascending — whoever arrived first.
- * This is the priority ranking used everywhere someone needs "who should
- * play next": the queue boards and the tapa-buraco suggestions.
+ * This is the one true priority ranking used everywhere someone needs "who
+ * should play next": the queue boards, tapa-buraco suggestions, and the
+ * next-match draft suggestion (`getNextMatchSuggestion`). It deliberately
+ * does NOT decide who *stays on the field* after a win — that's a separate
+ * privilege handled by `getNextMatchSuggestion`, which overrides this
+ * ranking for the reigning team (up to the anti-panela cap) precisely
+ * because "just played and won" and "played least today" pull in opposite
+ * directions.
  */
 export async function getQueue(
   supabase: TypedClient,
@@ -380,4 +386,216 @@ async function incrementGamesPlayed(
   if (results.some((r) => r.error)) {
     throw new Error("Erro ao atualizar partidas jogadas hoje.");
   }
+}
+
+const FULL_TEAM_SIZE = 6;
+
+/** Above this many players checked in for the session (playing + queued),
+ * the anti-panela cap (see `getConsecutiveWinStreaks`) kicks in. Below it,
+ * a strong team can keep winning indefinitely — small sessions don't have
+ * enough of a bench for capping to make sense. */
+export const ANTI_PANELA_THRESHOLD = 18;
+
+/** How many matches in a row a player may stay on the field once the
+ * anti-panela cap is active. Their next match after this many straight
+ * wins sends them to the back of the queue instead, win or not. */
+export const MAX_CONSECUTIVE_STAYS = 2;
+
+/**
+ * For each of `playerIds`, counts how many of the session's most recently
+ * *finished* matches they played in, walking backward from the latest and
+ * stopping at the first one where they weren't on the effective winning
+ * side (a loss, or a match they simply didn't play in). That count is
+ * their current "still on the field uninterrupted" streak — used by
+ * `getNextMatchSuggestion` to enforce the anti-panela cap (Regra 3).
+ *
+ * "Effective winning side" resolves a draw through `tiebreak_winner_team`
+ * (the sorteio winner recorded by `finishMatch`) rather than `winner_team`
+ * directly, since `winner_team` stays `'draw'` in the stats/history sense —
+ * see the migration adding that column for why the two are kept separate.
+ * A draw with no recorded tiebreak (shouldn't happen going forward, since
+ * `finishMatch` requires one, but historical rows might predate it) breaks
+ * the streak for everyone, same as a loss.
+ *
+ * Derived entirely from persisted match history — nothing here is cached
+ * or stored as a running counter, so it's safe to call this again later
+ * (e.g. from `getNextMatchSuggestion`, recomputing what `finishMatch`
+ * already acted on) and get the same answer.
+ */
+export async function getConsecutiveWinStreaks(
+  supabase: TypedClient,
+  sessionId: string,
+  playerIds: string[],
+): Promise<Map<string, number>> {
+  const streaks = new Map<string, number>();
+  if (playerIds.length === 0) return streaks;
+
+  // Ordered by `created_at`, not `finished_at`: `created_at` has a DB
+  // default and has always been populated (it's when the match *started*,
+  // which is still strictly chronological match-to-match), whereas
+  // `finished_at` only started being written by `finishMatch` alongside
+  // this feature — matches finished before that would sort first under
+  // `ascending: false` (Postgres puts NULLs first on a DESC order),
+  // corrupting "most recent" for any session with older history.
+  const { data: matches, error } = await supabase
+    .from("matches")
+    .select(
+      "id, winner_team, tiebreak_winner_team, created_at, match_participations(player_id, team)",
+    )
+    .eq("session_id", sessionId)
+    .eq("status", "finished")
+    .order("created_at", { ascending: false })
+    .overrideTypes<
+      Array<{
+        id: string;
+        winner_team: string | null;
+        tiebreak_winner_team: string | null;
+        created_at: string | null;
+        match_participations: Array<{ player_id: string | null; team: string }>;
+      }>,
+      { merge: false }
+    >();
+
+  if (error) {
+    throw new Error("Erro ao calcular sequência de partidas.");
+  }
+
+  const history = matches ?? [];
+
+  for (const playerId of playerIds) {
+    let streak = 0;
+    for (const match of history) {
+      const participation = match.match_participations.find(
+        (p) => p.player_id === playerId,
+      );
+      // Didn't play this match — they weren't continuously on the field,
+      // streak stops here.
+      if (!participation) break;
+
+      const effectiveWinner =
+        match.winner_team === "draw" ? match.tiebreak_winner_team : match.winner_team;
+
+      if (effectiveWinner && participation.team === effectiveWinner) {
+        streak += 1;
+        continue;
+      }
+      break;
+    }
+    streaks.set(playerId, streak);
+  }
+
+  return streaks;
+}
+
+export type MatchSuggestion = {
+  teamA: QueueEntry[];
+  teamB: QueueEntry[];
+};
+
+/**
+ * Suggests how the next match should be drafted, given the outcome of the
+ * most recently finished match in this session ("quem ganha fica" — Regra
+ * 4 / Regra 3). This is a pure read: it never writes anything, and never
+ * starts a match — `finishMatch` deliberately leaves the field idle after
+ * every result (see its docstring) so the admin decides when to actually
+ * call `createMatch`; this just tells the DraftBoard how to pre-fill.
+ *
+ * - The winning team (effective winner — see `getConsecutiveWinStreaks` for
+ *   how a draw's sorteio pick factors in) is kept as Time A, MINUS anyone
+ *   who has hit the anti-panela cap (Regra 3: once 18+ players are checked
+ *   in for the session, nobody stays past `MAX_CONSECUTIVE_STAYS` matches
+ *   in a row — evicted regardless of this match's result).
+ * - If the waiting queue (Regra 1 order, everyone but the kept winners) has
+ *   6 or fewer players, they become Time B wholesale and Time A is left as
+ *   the full surviving winning side (Regra 4, "≤6" case).
+ * - If the queue has more than 6, priority flips to draining it: as many
+ *   queued players as possible are admitted (up to the 12 field slots),
+ *   evicting the *worst-priority* survivors of the winning team first (the
+ *   tail of Regra 1's ordering) to make room. With 6 winners and 9 queued,
+ *   this evicts the 3 weakest winners, seats 6 fresh players as Time B and
+ *   the remaining 3 alongside the 3 kept winners as Time A — exactly Regra
+ *   4's worked example.
+ *
+ * Returns null when there's nothing to suggest from: no match has finished
+ * yet this session (the very first draft of the day), or the last match
+ * was a draw with no recorded `tiebreak_winner_team` (a legacy row from
+ * before this feature — `finishMatch` requires one going forward). Callers
+ * should fall back to a plain top-of-queue split in both cases.
+ */
+export async function getNextMatchSuggestion(
+  supabase: TypedClient,
+  sessionId: string,
+): Promise<MatchSuggestion | null> {
+  const { data: lastMatch, error: lastMatchError } = await supabase
+    .from("matches")
+    .select("id, winner_team, tiebreak_winner_team, match_participations(player_id, team)")
+    .eq("session_id", sessionId)
+    .eq("status", "finished")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    .overrideTypes<
+      {
+        id: string;
+        winner_team: string | null;
+        tiebreak_winner_team: string | null;
+        match_participations: Array<{ player_id: string | null; team: string }>;
+      },
+      { merge: false }
+    >();
+
+  if (lastMatchError) {
+    throw new Error("Erro ao calcular sugestão da próxima partida.");
+  }
+  if (!lastMatch) return null;
+
+  const effectiveWinner =
+    lastMatch.winner_team === "draw" ? lastMatch.tiebreak_winner_team : lastMatch.winner_team;
+  if (effectiveWinner !== "team_a" && effectiveWinner !== "team_b") return null;
+
+  const winnerIds = lastMatch.match_participations
+    .filter((p) => p.team === effectiveWinner && p.player_id)
+    .map((p) => p.player_id as string);
+  if (winnerIds.length === 0) return null;
+
+  const queue = await getQueue(supabase, sessionId);
+  const antiPanelaActive = queue.length > ANTI_PANELA_THRESHOLD;
+
+  let evictedIds = new Set<string>();
+  if (antiPanelaActive) {
+    const streaks = await getConsecutiveWinStreaks(supabase, sessionId, winnerIds);
+    evictedIds = new Set(
+      winnerIds.filter((id) => (streaks.get(id) ?? 0) >= MAX_CONSECUTIVE_STAYS + 1),
+    );
+  }
+
+  const winnerIdSet = new Set(winnerIds);
+  // Both filtered from `queue`, so both keep Regra 1's ordering — `stays`
+  // ordered best-to-worst priority (needed below to evict from the tail),
+  // `waiting` already the correct draft order for filling in around them.
+  const stays = queue.filter(
+    (entry) => winnerIdSet.has(entry.playerId) && !evictedIds.has(entry.playerId),
+  );
+  const waiting = queue.filter(
+    (entry) => !winnerIdSet.has(entry.playerId) || evictedIds.has(entry.playerId),
+  );
+
+  const remainingSlots = FULL_TEAM_SIZE * 2 - stays.length;
+  if (waiting.length <= remainingSlots) {
+    return { teamA: stays, teamB: waiting };
+  }
+
+  // Overflow: drain the queue, evicting the worst-priority survivors of the
+  // winning team (the tail of `stays`) to make room for everyone waiting,
+  // up to the 12 field slots.
+  const overflow = stays.length + waiting.length - FULL_TEAM_SIZE * 2;
+  const evictFromStaysCount = Math.min(stays.length, Math.max(0, overflow));
+  const keptStays =
+    evictFromStaysCount > 0 ? stays.slice(0, -evictFromStaysCount) : stays;
+  const admitted = waiting.slice(0, FULL_TEAM_SIZE * 2 - keptStays.length);
+
+  return {
+    teamA: [...keptStays, ...admitted.slice(FULL_TEAM_SIZE)],
+    teamB: admitted.slice(0, FULL_TEAM_SIZE),
+  };
 }

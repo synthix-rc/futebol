@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
-import { getQueue } from "@/utils/queue";
+import { getNextMatchSuggestion, getQueue } from "@/utils/queue";
 import { getInProgressSession } from "@/utils/sessions";
 import type { MatchTeam, PlayerType, PresenceStatus } from "@/types/supabase";
 import { CheckInButton } from "./CheckInButton";
@@ -86,6 +86,17 @@ export default async function CampoPage() {
   const teamB =
     activeMatch?.match_participations.filter((p) => p.team === "team_b") ?? [];
 
+  // "Quem ganha fica" (Regra 4/3) — only meaningful once the field is idle;
+  // pre-fills DraftBoard's A/B split from the last result instead of a
+  // naive top-12 slice. Falls back to that naive slice (via draftPool below)
+  // when there's no finished match to suggest from yet.
+  const suggestion = activeMatch
+    ? null
+    : await getNextMatchSuggestion(supabase, sessionId);
+  const draftPool = suggestion
+    ? [...suggestion.teamA, ...suggestion.teamB].map((entry) => entry.player)
+    : queue.slice(0, 12).map((entry) => entry.player);
+
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
       <div>
@@ -133,7 +144,9 @@ export default async function CampoPage() {
             </p>
             <DraftBoard
               sessionId={sessionId}
-              players={queue.slice(0, 12).map((entry) => entry.player)}
+              players={draftPool}
+              initialTeamAIds={suggestion?.teamA.map((entry) => entry.playerId)}
+              initialTeamBIds={suggestion?.teamB.map((entry) => entry.playerId)}
             />
           </div>
         )}

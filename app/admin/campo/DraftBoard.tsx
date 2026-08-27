@@ -43,9 +43,18 @@ type Teams = Record<TeamId, string[]>;
 export function DraftBoard({
   sessionId,
   players,
+  initialTeamAIds,
+  initialTeamBIds,
 }: {
   sessionId: string;
   players: QueuePlayer[];
+  /** Pre-fills the A/B split instead of the naive first-6/next-6 slice of
+   * `players` — used to seed "quem ganha fica" (Regra 4) from
+   * `getNextMatchSuggestion`. Falls back to the naive slice when either is
+   * omitted (e.g. the session's very first draft, with no prior match to
+   * suggest from). The admin can still drag-rebalance freely either way. */
+  initialTeamAIds?: string[];
+  initialTeamBIds?: string[];
 }) {
   // Seeded from the prop, then extended locally when the admin accepts
   // tapa-buraco suggestions to fill a shortfall (see handleFillersConfirmed).
@@ -57,10 +66,14 @@ export function DraftBoard({
     [poolPlayers],
   );
 
-  const [teams, setTeams] = useState<Teams>(() => ({
-    A: players.slice(0, TEAM_SIZE).map((p) => p.id),
-    B: players.slice(TEAM_SIZE, TEAM_SIZE * 2).map((p) => p.id),
-  }));
+  const [teams, setTeams] = useState<Teams>(() =>
+    initialTeamAIds && initialTeamBIds
+      ? { A: initialTeamAIds, B: initialTeamBIds }
+      : {
+          A: players.slice(0, TEAM_SIZE).map((p) => p.id),
+          B: players.slice(TEAM_SIZE, TEAM_SIZE * 2).map((p) => p.id),
+        },
+  );
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

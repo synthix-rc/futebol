@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import {
+  ANTI_PANELA_THRESHOLD,
+  MAX_CONSECUTIVE_STAYS,
   createMatch,
+  getConsecutiveWinStreaks,
   getQueue,
   requeuePlayers,
 } from "@/utils/queue";
@@ -163,6 +166,12 @@ export type MatchPlayerStat = {
  *   runs to break the tie, mandatory for a draw — is stored separately in
  *   `tiebreak_winner_team` and used as the *effective* winner below, purely
  *   for rotation purposes.
+ * - Anti-panela (Regra 3): once 18+ players are checked in for the session
+ *   (`ANTI_PANELA_THRESHOLD`), a player who has now stayed on the field for
+ *   more than `MAX_CONSECUTIVE_STAYS` matches in a row is sent to the back
+ *   of the queue right alongside the actual losers, regardless of this
+ *   match's result. `getConsecutiveWinStreaks` derives this from match
+ *   history — nothing is tracked as a running counter.
  *
  * Deliberately does NOT start the next match. It used to — auto-creating a
  * follow-up match the moment enough challengers were queued — but that made
@@ -172,8 +181,9 @@ export type MatchPlayerStat = {
  * through the whole roster and never be able to click "Encerrar Sessão".
  * Finishing a match now always returns the field to idle: the queue is
  * rotated and the result is recorded, then it's up to the admin to look at
- * the current queue (Campo/page.tsx renders DraftBoard whenever there's no
- * active match) and either start the next match themselves
+ * the current queue (Campo/page.tsx renders DraftBoard, pre-filled by
+ * `getNextMatchSuggestion`, whenever there's no active match) and either
+ * start the next match themselves
  * (`startFirstMatch`) or close the session for the day.
  *
  * `playerStats` is the "Súmula" tally (goals/assists per participant)
@@ -271,14 +281,31 @@ export async function finishMatch(
     // sorteio for a draw, direct otherwise. Always resolvable at this point
     // since a draw without `tiebreakWinner` was already rejected above.
     const effectiveWinner = result === "draw" ? tiebreakWinner : result;
+    const winnerIds = effectiveWinner === "team_a" ? teamAIds : teamBIds;
     const loserIds = effectiveWinner === "team_a" ? teamBIds : teamAIds;
 
+    // Regra 3 (anti-panela): only checked once the session is big enough
+    // that monopolizing the field actually costs other people playing time.
+    // `getQueue` here returns literally everyone checked in — this match
+    // was just marked "finished" above, so nobody is flagged as playing
+    // anymore, and it's the only match a session ever has in progress at
+    // once — i.e. exactly "jogando + fila" for the whole session.
+    const totalCheckedIn = (await getQueue(supabase, match.session_id)).length;
+    let evictedIds: string[] = [];
+    if (totalCheckedIn > ANTI_PANELA_THRESHOLD) {
+      const streaks = await getConsecutiveWinStreaks(supabase, match.session_id, winnerIds);
+      evictedIds = winnerIds.filter(
+        (id) => (streaks.get(id) ?? 0) >= MAX_CONSECUTIVE_STAYS + 1,
+      );
+    }
+
     const now = new Date().toISOString();
-    await requeuePlayers(supabase, match.session_id, loserIds, now);
+    await requeuePlayers(supabase, match.session_id, [...loserIds, ...evictedIds], now);
 
     await logAction("finish_match", "match", matchId, {
       result,
       tiebreakWinner: result === "draw" ? tiebreakWinner : undefined,
+      antiPanelaEvictedIds: evictedIds.length > 0 ? evictedIds : undefined,
       playerStats: playerStats.filter((s) => s.goals > 0 || s.assists > 0),
     });
   } catch (err) {
