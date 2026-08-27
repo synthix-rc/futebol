@@ -10,10 +10,12 @@ import {
   monthKey,
   trailingMonths,
 } from "@/utils/dashboardMetrics";
-import type { PaymentCategory, PlayerType } from "@/types/supabase";
+import type { PlayerType } from "@/types/supabase";
 import { getMonthlyIncomeBreakdown } from "@/app/actions/stats";
-import { PaymentsList, type PaymentRowData } from "./PaymentsList";
 import { ExpenseForm } from "./ExpenseForm";
+import { GuestPaymentForm } from "./GuestPaymentForm";
+
+type MensalistaRow = { id: string; name: string; paid: boolean; amount: number | null };
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -25,69 +27,15 @@ export default async function FinanceiroPage() {
   const session = await getInProgressSession(supabase);
 
   let cashTotal = 0;
-  let diaristaRows: PaymentRowData[] = [];
 
   if (session) {
-    const [{ data: paidPayments }, { data: diaristaPresences }] = await Promise.all([
-      supabase
-        .from("payments")
-        .select("amount")
-        .eq("session_id", session.id)
-        .eq("status", "pago"),
-      supabase
-        .from("session_presences")
-        .select("player_id, players(id, name, type)")
-        .eq("session_id", session.id)
-        .eq("status", "checked_in_field")
-        .overrideTypes<
-          Array<{
-            player_id: string;
-            players: { id: string; name: string; type: PlayerType | null } | null;
-          }>,
-          { merge: false }
-        >(),
-    ]);
-
-    cashTotal = (paidPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
-
-    const diaristaByPlayer = new Map<string, { id: string; name: string }>();
-    for (const presence of diaristaPresences ?? []) {
-      if (presence.players?.type === "diarista") {
-        diaristaByPlayer.set(presence.player_id, {
-          id: presence.players.id,
-          name: presence.players.name,
-        });
-      }
-    }
-
-    const { data: diariaPayments } = await supabase
+    const { data: paidPayments } = await supabase
       .from("payments")
-      .select("player_id, amount, category")
+      .select("amount")
       .eq("session_id", session.id)
-      .eq("type", "diaria")
       .eq("status", "pago");
 
-    // One entry per player — if a player somehow has both a 'campo' and a
-    // 'churrasco' diária for the same session (registerPayment's
-    // uniqueness check allows that combination on purpose), this "Visão do
-    // Dia" row can only reflect one of them. That's an acceptable gap for
-    // this widget's scope; both rows still exist in `payments` either way.
-    const paidByPlayer = new Map(
-      (diariaPayments ?? []).map((p) => [
-        p.player_id,
-        { amount: Number(p.amount), category: p.category as PaymentCategory },
-      ]),
-    );
-
-    diaristaRows = Array.from(diaristaByPlayer.values())
-      .map((player) => ({
-        id: player.id,
-        name: player.name,
-        paid: paidByPlayer.has(player.id),
-        amount: paidByPlayer.get(player.id)?.amount ?? null,
-        category: paidByPlayer.get(player.id)?.category ?? null,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    cashTotal = (paidPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
   }
 
   const currentMonth = monthKey(new Date().toISOString());
@@ -144,13 +92,12 @@ export default async function FinanceiroPage() {
   // Read-only overview — actually marking a mensalidade paid happens on
   // that player's own ficha (/admin/jogadores) now, not from a long list
   // here, since a monthly fee isn't tied to any one day's session.
-  const mensalistaRows: PaymentRowData[] = (mensalistaPlayers ?? []).map((player) => ({
+  const mensalistaRows: MensalistaRow[] = (mensalistaPlayers ?? []).map((player) => ({
     id: player.id,
     name: player.name,
     paid: paidMensalidadeByPlayer.has(player.id),
     amount: paidMensalidadeByPlayer.get(player.id) ?? null,
   }));
-
 
   // Média mensal de diaristas — same "distinct diaristas checked in per
   // month" definition used on the Dashboard, needed here for both the
@@ -311,20 +258,9 @@ export default async function FinanceiroPage() {
 
           <section className="flex flex-col gap-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
-              Visão do Dia (Diárias)
+              Registrar Receita Avulsa (Diarista)
             </h3>
-            {session ? (
-              <PaymentsList
-                type="diaria"
-                sessionId={session.id}
-                referenceMonth={session.sessionDate.slice(0, 7)}
-                rows={diaristaRows}
-              />
-            ) : (
-              <p className="text-sm text-foreground/40">
-                Inicie a sessão de domingo em &quot;Gerar Link&quot; para ver as diárias.
-              </p>
-            )}
+            <GuestPaymentForm />
           </section>
 
           <section className="flex flex-col gap-3">
@@ -378,7 +314,7 @@ function ForecastStat({
   );
 }
 
-function MensalidadeSummary({ rows }: { rows: PaymentRowData[] }) {
+function MensalidadeSummary({ rows }: { rows: MensalistaRow[] }) {
   if (rows.length === 0) {
     return <p className="text-sm text-foreground/40">Nenhum mensalista cadastrado.</p>;
   }

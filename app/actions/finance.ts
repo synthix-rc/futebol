@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { requireUser } from "@/utils/auth";
 import { logAction } from "@/utils/audit";
+import { monthKey } from "@/utils/dashboardMetrics";
 import type { ExpenseCategory, PaymentCategory, PaymentType } from "@/types/supabase";
 
 type ActionResult = { success: boolean; message?: string };
@@ -114,6 +115,100 @@ export async function registerPayment(
     amount: input.amount,
     referenceMonth: input.referenceMonth,
     category,
+  });
+
+  revalidatePath("/admin/financeiro");
+  revalidatePath("/financeiro-publico");
+  return { success: true };
+}
+
+export type GuestPaymentDestination = "campo" | "churrasco" | "ambos";
+const GUEST_PAYMENT_DESTINATIONS: GuestPaymentDestination[] = ["campo", "churrasco", "ambos"];
+
+/** Splits a total in two, rounded to whole cents, so the two halves always
+ * sum back to exactly the original value — `value - half1` for the second
+ * half rather than rounding both independently, which could otherwise
+ * drift a cent off `value` and throw off "Resumo de Entradas do Mês". */
+function splitEvenly(value: number): [number, number] {
+  const half1 = Math.round((value * 100) / 2) / 100;
+  const half2 = Math.round((value - half1) * 100) / 100;
+  return [half1, half2];
+}
+
+/**
+ * "Receita Avulsa" — diaristas are no longer registered as players at
+ * all, so an ad-hoc/guest payment (day-of contribution from someone with
+ * no `players` row) is recorded against a plain name instead of a
+ * `player_id` (nullable since the guest-payment migration). Always
+ * `status: 'pago'` and `type: 'diaria'` — there's no "pending" state for
+ * a payment collected on the spot, and it's inherently a one-off, not a
+ * monthly due.
+ *
+ * `destination: 'ambos'` isn't a real `category` value in the DB (only
+ * 'campo'/'churrasco' exist there) — it's a form-level convenience that
+ * splits `value` into two real rows, one of each category, so "Resumo de
+ * Entradas do Mês" (which sums by category) keeps adding up correctly
+ * without needing to know about a third "both" bucket.
+ */
+export async function registerGuestPayment(
+  guestName: string,
+  destination: GuestPaymentDestination,
+  value: number,
+): Promise<ActionResult> {
+  const trimmedName = guestName.trim();
+  if (!trimmedName) {
+    return { success: false, message: "Informe o nome." };
+  }
+  if (!GUEST_PAYMENT_DESTINATIONS.includes(destination)) {
+    return { success: false, message: "Destino inválido." };
+  }
+  if (!Number.isFinite(value) || value <= 0) {
+    return { success: false, message: "Informe um valor válido." };
+  }
+
+  const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
+
+  const rows: Array<{ category: PaymentCategory; amount: number }> =
+    destination === "ambos"
+      ? (() => {
+          const [campoAmount, churrascoAmount] = splitEvenly(value);
+          return [
+            { category: "campo", amount: campoAmount },
+            { category: "churrasco", amount: churrascoAmount },
+          ];
+        })()
+      : [{ category: destination, amount: value }];
+
+  const referenceMonth = monthKey(new Date().toISOString());
+
+  const { data: inserted, error } = await supabase
+    .from("payments")
+    .insert(
+      rows.map((row) => ({
+        player_id: null,
+        guest_name: trimmedName,
+        type: "diaria" as const,
+        status: "pago" as const,
+        reference_month: referenceMonth,
+        category: row.category,
+        amount: row.amount,
+      })),
+    )
+    .select("id");
+
+  if (error) {
+    return { success: false, message: "Erro ao registrar pagamento." };
+  }
+
+  await logAction("register_guest_payment", "payment", inserted?.[0]?.id, {
+    guestName: trimmedName,
+    destination,
+    value,
+    rows,
   });
 
   revalidatePath("/admin/financeiro");

@@ -36,7 +36,7 @@ export default async function FinanceiroPublicoPage() {
   const [{ data: payments }, { data: expenses }] = await Promise.all([
     supabase
       .from("payments")
-      .select("id, amount, type, created_at, receipt_url, players(name)")
+      .select("id, amount, type, created_at, receipt_url, guest_name, players(name)")
       .eq("status", "pago")
       .order("created_at", { ascending: false })
       .overrideTypes<
@@ -46,6 +46,7 @@ export default async function FinanceiroPublicoPage() {
           type: PaymentType;
           created_at: string;
           receipt_url: string | null;
+          guest_name: string | null;
           players: { name: string } | null;
         }>,
         { merge: false }
@@ -72,7 +73,7 @@ export default async function FinanceiroPublicoPage() {
       id: `payment-${p.id}`,
       date: new Date(p.created_at),
       kind: "entrada" as const,
-      label: p.players?.name ?? "Jogador",
+      label: p.players?.name ?? p.guest_name ?? "Jogador",
       sublabel: p.type === "mensalidade" ? "Mensalidade" : "Diária",
       amount: Number(p.amount),
       receiptUrl: p.receipt_url,
