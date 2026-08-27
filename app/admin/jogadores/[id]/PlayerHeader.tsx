@@ -6,6 +6,7 @@ import type { PlayerStatus, PlayerType } from "@/types/supabase";
 import { PlayerAvatar } from "../PlayerAvatar";
 import { StatusBadge } from "../PlayerRowShared";
 import { CopyMagicLinkButton } from "./CopyMagicLinkButton";
+import { ResetPinButton } from "./ResetPinButton";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -22,6 +23,7 @@ export type PlayerHeaderData = {
   email: string | null;
   birthDay: number | null;
   birthMonth: number | null;
+  hasPin: boolean;
 };
 
 function formatBirthday(day: number | null, month: number | null): string {
@@ -83,6 +85,7 @@ export function PlayerHeader({ player }: { player: PlayerHeaderData }) {
             <h1 className="text-xl font-bold">{player.name}</h1>
             <StatusBadge status={player.status} />
             <CopyMagicLinkButton playerId={player.id} />
+            {player.hasPin && <ResetPinButton playerId={player.id} />}
           </div>
           <p className="text-sm text-foreground/60">
             {player.type === "mensalista" ? "Mensalista" : "Diarista"}

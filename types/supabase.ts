@@ -306,11 +306,13 @@ export type Database = {
           created_at: string | null
           def_rating: number | null
           email: string | null
+          has_pin: boolean | null
           id: string
           mid_rating: number | null
           name: string
           phone: string | null
           photo_url: string | null
+          pin: string | null
           speed_rating: number
           stamina_rating: number
           status: Database["public"]["Enums"]["player_status"]
@@ -325,11 +327,13 @@ export type Database = {
           created_at?: string | null
           def_rating?: number | null
           email?: string | null
+          has_pin?: boolean | null
           id?: string
           mid_rating?: number | null
           name: string
           phone?: string | null
           photo_url?: string | null
+          pin?: string | null
           speed_rating?: number
           stamina_rating?: number
           status?: Database["public"]["Enums"]["player_status"]
@@ -344,11 +348,13 @@ export type Database = {
           created_at?: string | null
           def_rating?: number | null
           email?: string | null
+          has_pin?: boolean | null
           id?: string
           mid_rating?: number | null
           name?: string
           phone?: string | null
           photo_url?: string | null
+          pin?: string | null
           speed_rating?: number
           stamina_rating?: number
           status?: Database["public"]["Enums"]["player_status"]
@@ -555,7 +561,10 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      verify_or_set_player_pin: {
+        Args: { p_pin: string; p_player_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       expense_category:

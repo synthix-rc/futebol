@@ -18,7 +18,7 @@ export default async function PlayerDetailPage({
   const { data: player } = await supabase
     .from("players")
     .select(
-      "id, name, type, status, photo_url, phone, email, birth_day, birth_month, def_rating, mid_rating, atk_rating, speed_rating, stamina_rating",
+      "id, name, type, status, photo_url, phone, email, birth_day, birth_month, has_pin, def_rating, mid_rating, atk_rating, speed_rating, stamina_rating",
     )
     .eq("id", id)
     .maybeSingle();
@@ -102,6 +102,7 @@ export default async function PlayerDetailPage({
                 email: player.email,
                 birthDay: player.birth_day,
                 birthMonth: player.birth_month,
+                hasPin: player.has_pin ?? false,
               }}
             />
 

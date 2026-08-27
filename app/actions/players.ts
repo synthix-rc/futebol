@@ -271,6 +271,43 @@ export async function updateQuickEdit(
   return { success: true };
 }
 
+/**
+ * Clears a player's RSVP PIN (see the migration adding `players.pin`) for
+ * when they forget it — their next RSVP will prompt them to set a new one,
+ * same as if they'd never had one. Admin-only: this is the deliberate
+ * "break glass" path around the PIN, so it goes through `requireUser` like
+ * every other admin write, not the public `verify_or_set_player_pin` RPC
+ * (which only ever moves a PIN from null to set, or confirms a match — it
+ * has no path back to null by design, since anon has no reason to ever
+ * clear someone else's PIN).
+ */
+export async function resetPlayerPin(playerId: string): Promise<ActionResult> {
+  if (!playerId) {
+    return { success: false, message: "Jogador inválido." };
+  }
+
+  const supabase = await createClient();
+
+  if (!(await requireUser(supabase))) {
+    return { success: false, message: "Sessão expirada. Faça login novamente." };
+  }
+
+  const { error } = await supabase
+    .from("players")
+    .update({ pin: null })
+    .eq("id", playerId);
+
+  if (error) {
+    return { success: false, message: "Erro ao resetar o PIN." };
+  }
+
+  await logAction("reset_player_pin", "player", playerId);
+
+  revalidatePath("/admin/jogadores");
+  revalidatePath(`/admin/jogadores/${playerId}`);
+  return { success: true };
+}
+
 /** Approves a pending signup — the only status transition exposed. There's
  * no reverse action (active -> pending) since nothing in the product asks
  * for one yet. */

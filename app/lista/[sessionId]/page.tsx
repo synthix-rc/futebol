@@ -29,7 +29,10 @@ export default async function ListaPage({
 
   const [{ data: players }, { data: presences }, { count: confirmedCount }] =
     await Promise.all([
-      supabase.from("players").select("id, name, type").order("name"),
+      supabase
+        .from("players")
+        .select("id, name, type, has_pin")
+        .order("name"),
       supabase
         .from("session_presences")
         .select("id, player_id, status, rsvp_timestamp, players(id, name)")
@@ -108,7 +111,11 @@ export default async function ListaPage({
                 {presence ? (
                   <StatusBadge status={presence.status} />
                 ) : gate.open ? (
-                  <ConfirmButton sessionId={sessionId} playerId={player.id} />
+                  <ConfirmButton
+                    sessionId={sessionId}
+                    playerId={player.id}
+                    hasPin={player.has_pin ?? false}
+                  />
                 ) : (
                   <span className="text-xs text-foreground/40">Encerrado</span>
                 )}
