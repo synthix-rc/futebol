@@ -223,81 +223,24 @@ export async function transitionSession(
 }
 
 /**
- * The real UTC instant corresponding to the given wall-clock date/time as
- * it would read in `timeZone`. Resolves the zone's offset via Intl instead
- * of a hardcoded value, so it stays correct if the zone's DST rules ever
- * change (Brazil currently observes none, but has in the past).
- */
-function zonedTimeToUtc(
-  year: number,
-  month: number, // 1-indexed
-  day: number,
-  hour: number,
-  minute: number,
-  second: number,
-  timeZone: string,
-): Date {
-  const naiveUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
-
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(new Date(naiveUtcMs));
-
-  const get = (type: string) =>
-    Number(parts.find((part) => part.type === type)?.value ?? 0);
-
-  // Reading the naive guess's wall-clock digits back out *in the target
-  // zone* and re-interpreting those digits as UTC reveals the zone's
-  // offset at that moment (the gap between the two is exactly the offset).
-  const asIfUtcMs = Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour"),
-    get("minute"),
-    get("second"),
-  );
-
-  return new Date(naiveUtcMs - (asIfUtcMs - naiveUtcMs));
-}
-
-/**
- * 23:59:59 *Brasília time* the day before `sessionDate` — the cutoff is a
- * real-world deadline for people in Brazil, not a UTC one. Originally
- * documented as "Saturday before the Sunday session" back when every
- * session was a Sunday; the underlying math was always just "the day
- * before" and needed no change once "Gerar Lista" let the admin pick any
- * date (see createSessionOnDate) — a midweek pelada's cutoff is simply the
- * night before it, same as it always was for a Sunday one.
- */
-export function rsvpCutoff(sessionDate: string): Date {
-  const [year, month, day] = sessionDate.split("-").map(Number);
-  // `day 0` normalizes to the last day of the previous month/day before,
-  // per standard Date.UTC rollover behavior.
-  const dayBefore = new Date(Date.UTC(year, month - 1, day - 1));
-
-  return zonedTimeToUtc(
-    dayBefore.getUTCFullYear(),
-    dayBefore.getUTCMonth() + 1,
-    dayBefore.getUTCDate(),
-    23,
-    59,
-    59,
-    BRAZIL_TIME_ZONE,
-  );
-}
-
-/**
- * Gate for the public RSVP page: closed once the session has moved past
- * `open_for_rsvp`, once `RSVP_CAP` players have confirmed, or once the
- * Saturday-23:59 cutoff has passed — whichever comes first.
+ * Gate for the public RSVP page — status-driven, not clock-driven:
+ * - `false` once the session has moved past `open_for_rsvp` (`in_progress`
+ *   or `closed`).
+ * - `false` once `RSVP_CAP` players have confirmed.
+ * - `false` once `sessionDate` is strictly before today in Brasília
+ *   (`todayInBrazilISODate`) — guards against accidentally reopening RSVP
+ *   on a stale `open_for_rsvp` session nobody ever advanced, without
+ *   blocking a same-day one.
+ * - `true` otherwise.
+ *
+ * There used to be a 4th gate here — a hard 23:59-the-night-before cutoff
+ * (`rsvpCutoff`, removed) — but that made it structurally impossible to
+ * ever open RSVP for a same-day pelada: the cutoff for TODAY's session had
+ * already passed the moment the session was created. Since "Gerar Lista"
+ * now lets the admin pick any date (see createSessionOnDate), including
+ * today, the clock-based cutoff had to go; the session's own status
+ * (closed by the admin, or dated in the past) is what actually decides
+ * this now.
  */
 export function isRsvpOpen(
   session: Pick<SessionSummary, "status" | "sessionDate">,
@@ -306,16 +249,13 @@ export function isRsvpOpen(
   if (session.status !== "open_for_rsvp") {
     return { open: false, reason: "Esta lista não está mais recebendo confirmações." };
   }
+  if (session.sessionDate < todayInBrazilISODate()) {
+    return { open: false, reason: "Esta lista já passou da data da pelada." };
+  }
   if (confirmedCount >= RSVP_CAP) {
     return {
       open: false,
       reason: `Lista lotada — ${RSVP_CAP} vagas confirmadas preenchidas.`,
-    };
-  }
-  if (Date.now() > rsvpCutoff(session.sessionDate).getTime()) {
-    return {
-      open: false,
-      reason: "O prazo para confirmar presença encerrou no sábado às 23h59.",
     };
   }
   return { open: true };
