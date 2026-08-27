@@ -61,8 +61,8 @@ export function SumulaModal({
     });
   }
 
-  const teamAEntries = roster.filter((entry) => entry.team === "A");
-  const teamBEntries = roster.filter((entry) => entry.team === "B");
+  const teamAEntries = roster.filter((entry) => entry.team === "team_a");
+  const teamBEntries = roster.filter((entry) => entry.team === "team_b");
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-6">

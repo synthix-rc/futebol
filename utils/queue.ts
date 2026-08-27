@@ -229,13 +229,13 @@ export async function createMatch(
     ...teamA.map((entry) => ({
       match_id: match.id,
       player_id: entry.playerId,
-      team: "A" as const,
+      team: "team_a" as const,
       is_completing: entry.isCompleting ?? false,
     })),
     ...teamB.map((entry) => ({
       match_id: match.id,
       player_id: entry.playerId,
-      team: "B" as const,
+      team: "team_b" as const,
       is_completing: entry.isCompleting ?? false,
     })),
   ];
@@ -245,6 +245,31 @@ export async function createMatch(
     .insert(participations);
 
   if (participationsError) {
+    console.error("ERRO SUPABASE INICIAR PARTIDA:", participationsError);
+
+    // Manual rollback — `matches` and `match_participations` are two
+    // separate inserts, not one transaction, so a failure here would
+    // otherwise leave an orphaned "in_progress" match with zero players
+    // behind on every failed attempt (exactly what happened before this
+    // fix: 4 phantom matches accumulated in production from repeated
+    // failed starts, one of them silently blocking /admin/campo by
+    // duplicating the "current match" row). Delete it before returning,
+    // so a failed start never leaves a trace.
+    const { error: rollbackError } = await supabase
+      .from("matches")
+      .delete()
+      .eq("id", match.id);
+
+    if (rollbackError) {
+      // Surfaced separately — if this fails, the orphaned match survives
+      // and needs manual cleanup, which is worth knowing even though the
+      // original error is still what gets reported to the caller.
+      console.error(
+        `ERRO SUPABASE ROLLBACK PARTIDA (partida ${match.id} pode ter sobrado orfa):`,
+        rollbackError,
+      );
+    }
+
     throw new Error("Erro ao escalar os times da partida.");
   }
 

@@ -726,6 +726,13 @@ export const Constants = {
 // (payments) are plain `text` columns in the DB, not real Postgres enums,
 // so they stay as app-level literal unions matching the values this
 // codebase writes.
+//
+// `team`'s two allowed values are enforced by a real CHECK constraint on
+// the live table (match_participations_team_check —
+// `team = ANY (ARRAY['team_a', 'team_b'])`), confirmed via
+// `supabase db query`. It's 'team_a'/'team_b', matching `winner_team`'s
+// convention below — NOT the bare 'A'/'B' this alias used to declare,
+// which every INSERT into match_participations was silently violating.
 export type PlayerType = Enums<"player_type">;
 export type PlayerStatus = Enums<"player_status">;
 export type PresenceStatus = Enums<"rsvp_status">;
@@ -734,6 +741,6 @@ export type SessionStatus = Enums<"session_status">;
 export type PaymentType = Enums<"payment_type">;
 export type PaymentStatus = Enums<"payment_status">;
 export type ExpenseCategory = Enums<"expense_category">;
-export type MatchTeam = "A" | "B";
+export type MatchTeam = "team_a" | "team_b";
 export type WinnerTeam = "team_a" | "team_b" | "draw";
 export type PaymentCategory = "campo" | "churrasco";

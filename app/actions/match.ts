@@ -136,6 +136,7 @@ export async function startFirstMatch(
 
     await createMatch(supabase, sessionId, teamARoster, teamBRoster);
   } catch (err) {
+    console.error("ERRO SUPABASE INICIAR PARTIDA:", err);
     return {
       success: false,
       message: err instanceof Error ? err.message : "Erro ao iniciar a partida.",
@@ -208,10 +209,10 @@ export async function finishMatch(
     }
 
     const teamAIds = participations
-      .filter((p) => p.team === "A")
+      .filter((p) => p.team === "team_a")
       .map((p) => p.player_id);
     const teamBIds = participations
-      .filter((p) => p.team === "B")
+      .filter((p) => p.team === "team_b")
       .map((p) => p.player_id);
 
     const participantIds = new Set(participations.map((p) => p.player_id));
@@ -277,6 +278,7 @@ export async function finishMatch(
       }
     }
   } catch (err) {
+    console.error("ERRO SUPABASE FINALIZAR PARTIDA:", err);
     return {
       success: false,
       message:

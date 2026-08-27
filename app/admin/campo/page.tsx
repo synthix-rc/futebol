@@ -82,9 +82,9 @@ export default async function CampoPage() {
   );
 
   const teamA =
-    activeMatch?.match_participations.filter((p) => p.team === "A") ?? [];
+    activeMatch?.match_participations.filter((p) => p.team === "team_a") ?? [];
   const teamB =
-    activeMatch?.match_participations.filter((p) => p.team === "B") ?? [];
+    activeMatch?.match_participations.filter((p) => p.team === "team_b") ?? [];
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
