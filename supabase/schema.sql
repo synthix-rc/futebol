@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS players (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   phone TEXT UNIQUE NOT NULL,
+  birth_date DATE,
   pin_code VARCHAR(4),
   type player_type NOT NULL DEFAULT 'MENSALISTA',
   position player_position NOT NULL DEFAULT 'MEIO_CAMPO',

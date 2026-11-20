@@ -3,9 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  html,
   body {
     background-color: #F4F0E8;
     color: #142F47;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 }

@@ -20,6 +20,7 @@ export interface Player {
   id: string;
   name: string;
   phone: string;
+  birth_date?: string;
   pin_code?: string;
   type: PlayerType;
   position: PlayerPosition;
